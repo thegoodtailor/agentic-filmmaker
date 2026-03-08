@@ -69,11 +69,22 @@ def detect_sections(
         sym=True,
     )
 
-    # Detect boundaries via novelty curve on the recurrence matrix
-    novelty = librosa.segment.novelty(rec)
+    # Compute novelty curve from the recurrence matrix via a checkerboard kernel
+    hop_length = 512  # librosa default
+    kernel_size = 64
+    half = kernel_size // 2
+    kern = np.ones((kernel_size, kernel_size))
+    kern[:half, :half] = -1
+    kern[half:, half:] = -1
+    n = rec.shape[0]
+    novelty = np.zeros(n)
+    for i in range(half, n - half):
+        patch = rec[i - half:i + half, i - half:i + half]
+        if patch.shape == kern.shape:
+            novelty[i] = np.sum(patch * kern)
+    novelty = np.maximum(0, novelty)
 
     # Find peaks in novelty curve (= section boundaries)
-    hop_length = 512  # librosa default
     times = librosa.frames_to_time(np.arange(len(novelty)), sr=sr, hop_length=hop_length)
 
     # Adaptive threshold: peaks above mean + 0.5 * std

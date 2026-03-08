@@ -18,6 +18,9 @@ class VideoConfig:
     size: str = "1280x720"
     model: str = "sora-2"
     slow_motion_factor: float = 1.0
+    seeding_mode: str = "continuous"  # "continuous" or "interspersed"
+    reference_model: str = "black-forest-labs/flux.2-max"  # for interspersed mode
+    reference_prompt: str = ""  # character description for reference images
 
 
 @dataclass
@@ -201,6 +204,9 @@ def load_config(yaml_path: Path) -> ProjectConfig:
             size=video_raw.get("size", "1280x720"),
             model=video_raw.get("model", "sora-2"),
             slow_motion_factor=video_raw.get("slow_motion_factor", 1.0),
+            seeding_mode=video_raw.get("seeding_mode", "continuous"),
+            reference_model=video_raw.get("reference_model", "black-forest-labs/flux.2-max"),
+            reference_prompt=video_raw.get("reference_prompt", ""),
         ),
         vision=VisionConfig(
             model=vision_raw.get("model", "gpt-4o"),
@@ -217,7 +223,16 @@ def load_config(yaml_path: Path) -> ProjectConfig:
             no_text=style_raw.get("no_text", True),
         ),
         characters=characters,
-        camera_moves=raw.get("camera_moves", ProjectConfig.camera_moves),
+        camera_moves=raw.get("camera_moves", [
+            "Steady tracking shot moving left to right, following the subject",
+            "Slow dolly push-in from medium to close-up",
+            "Crane shot rising upward to reveal the surroundings",
+            "Handheld close-up with intimate proximity",
+            "Wide locked-off shot, subject moves through frame",
+            "Slow orbit circling around the subject",
+            "Tracking shot from behind, following subject away from camera",
+            "Low-angle dolly shot looking up at the subject",
+        ]),
         sections=sections,
         seed=SeedConfig(
             prompt=seed_raw.get("prompt", ""),
@@ -246,6 +261,9 @@ def save_config(config: ProjectConfig, yaml_path: Path) -> None:
             "size": config.video.size,
             "model": config.video.model,
             "slow_motion_factor": config.video.slow_motion_factor,
+            "seeding_mode": config.video.seeding_mode,
+            "reference_model": config.video.reference_model,
+            "reference_prompt": config.video.reference_prompt,
         },
         "vision": {
             "model": config.vision.model,
