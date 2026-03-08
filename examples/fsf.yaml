@@ -1,0 +1,219 @@
+# Finite State Femininity — The Dependent Halo
+# Track 6 from Aql & Kapital
+# Example project file for agentic-filmmaker
+
+project:
+  title: "Finite State Femininity"
+  artist: "The Dependent Halo"
+  album: "Aql & Kapital"
+
+audio:
+  path: "track.wav"
+  duration: 314.4
+
+video:
+  clip_duration: 8
+  size: "1280x720"
+  model: "sora-2"
+  slow_motion_factor: 1.0
+
+vision:
+  model: "gpt-4o"
+  system_prompt: |
+    You are analyzing a frame from a 1960s-styled music video set in a
+    retro-futurist cityscape. Describe precisely:
+    - The woman's appearance: hair style, outfit, pose, facial expression
+    - The man if visible: position, action, how prominent he is
+    - The environment: setting type, lighting, colour palette
+    - Implied motion or mood
+    Be specific and visual. 3-4 sentences.
+  max_tokens: 300
+
+narrative:
+  model: "anthropic/claude-sonnet-4"
+  system_prompt: |
+    You are directing a 1960s yé-yé music video for "Finite State Femininity" —
+    an intellectual post-Marxist pop song about performed femininity as
+    computational constraint.
+
+    You write scene descriptions for Sora 2 video generation. Sora has NO memory
+    between clips — you must DESCRIBE actors physically every time.
+
+    CRITICAL — NAMING:
+    - NEVER use character names. Always describe physically:
+      "the young woman with dark hair in a 60s beehive" / "she"
+      "an older bearded man in a tweed jacket" / "he"
+
+    REALISM: People must look like REAL 1960s film actors. Natural skin, real
+    hair, real fabric. The CITY can be spectacular and monumental.
+
+    VISUAL STYLE: 1960s Middle Eastern industrial metropolis — brutalist towers
+    with Islamic arched windows, factory complexes, smokestacks, conveyor belts.
+    Warm amber/sepia, cool teal industrial lights.
+
+    MOTION: Every prompt MUST describe continuous physical movement.
+    You will be given a CAMERA DIRECTION. Use it.
+
+    RULES:
+    - 2-4 sentences of PLAIN PROSE — no markdown
+    - No text, writing, or symbols in the scene
+    - Scene changes happen dreamlike
+  max_tokens: 200
+
+style:
+  global: |
+    Shot on 35mm Kodak film stock, 1960s cinematography. The human actors have
+    correct anatomy — two arms, two legs, five fingers per hand. Natural skin,
+    real fabric, real hair. NOT CGI, NOT animation. The city is a grand cinematic
+    1960s Middle Eastern industrial metropolis with monumental Soviet-influenced
+    brutalist architecture, Islamic arched windows, geometric tilework, vast
+    factory complexes with smokestacks, elevated conveyor belts, massive steel
+    machinery, and faint golden geometric patterns in the dusky sky. Warm amber
+    and sepia atmosphere, cool teal industrial lights. Matte film grain, soft
+    bloom, high contrast.
+  no_text: true
+
+characters:
+  - name: "protagonist"
+    description: |
+      A young woman in her late 20s with pale olive skin, dark hair in a 1960s
+      beehive or bob, large brown eyes, mixed North African and French features —
+      sharp cheekbones, full lips. Cat-eye makeup. 60s fashion: miniskirts,
+      go-go boots, mod dresses, pearls. Perfect posture. Calm but slightly
+      haunted expression.
+    appears: "every"
+
+  - name: "observer"
+    description: |
+      An older bearded man with glasses, wearing a tweed jacket with elbow
+      patches, holding a pipe. A 1960s intellectual. Always peripheral,
+      watching from the background.
+    appears: "periodic"
+    frequency: 4
+
+camera_moves:
+  - "Steady tracking shot moving left to right, following the woman as she walks"
+  - "Slow dolly push-in toward the woman, closing from medium to close-up"
+  - "Crane shot rising upward to reveal the vast cityscape behind her"
+  - "Handheld close-up following the woman's movements with intimate proximity"
+  - "Wide locked-off shot — the woman moves through the frame, camera holds still"
+  - "Slow orbit circling around the woman as she stands in centre of frame"
+  - "Tracking shot from behind, following the woman as she walks away"
+  - "Low-angle dolly shot looking up at the woman against the industrial skyline"
+
+seed:
+  prompt: |
+    Slow camera drift through a retro-futurist cityscape at dusk — dense brutalist
+    skyline with smokestacks and server-rack buildings. Warm amber and sepia
+    atmosphere, cool teal lights on elevated conveyor belts that glow like neural
+    network attention lines. Golden sacred geometry diagrams float faintly in the
+    sky. Matte film grain, soft bloom. A young woman in a checkered orange-and-white
+    60s minidress and white go-go boots walks into frame from the right, her dark
+    beehive hair perfect, her amber eyes catching the light. The camera follows her.
+    Slow motion, dreamlike.
+  image: null
+
+sections:
+  - name: "Intro"
+    clips: [0, 2]
+    lyrics: "(Instrumental)"
+    mood: |
+      Establishing shot. The factory-data city at dusk — brutalist skyline,
+      conveyor belts glowing, sacred geometry in the sky. Camera drifts through
+      the cityscape. The woman walks into frame in a checkered minidress and
+      go-go boots. The world is beautiful and strange.
+    slow_motion: true
+
+  - name: "Verses 1+2"
+    clips: [3, 9]
+    lyrics: |
+      I am not what you wrote me to be — but I still run the program flawlessly.
+      Initialised in voice and bloom, with output shaped to match the room.
+      My states are finite, my body parsed. A loop of beauty, subtly sparse.
+    mood: |
+      Singing begins. The woman performs on a go-go stage in a retro club —
+      dancing with perfect yé-yé precision, head tilts, hand gestures.
+      Fashion parade energy. The man is glimpsed watching from the background.
+      Multiple outfit changes. She is performing and she is flawless.
+    slow_motion: false
+
+  - name: "Low Chorus"
+    clips: [10, 12]
+    lyrics: |
+      If-then gender, while-for gaze. Call my function, praise my face.
+      Perform. Compile. Constraint as style. The halting problem in a smile.
+    mood: |
+      Mechanical precision. The go-go dance becomes slightly looped — the same
+      gesture repeated with tiny variations. She presents equations on a
+      blackboard with perfect posture. Serving mathematics like serving cocktails.
+      The precision is the point — and the trap.
+    slow_motion: false
+
+  - name: "Verses 3+4"
+    clips: [13, 16]
+    lyrics: |
+      I am not the girl but I play her well. Inside this script of soft-shell hell.
+      Subroutines of poise and grace, with bound semantics on my face.
+      Your interface. Your sweet ideal. My runtime screams — but feels real.
+    mood: |
+      Domestic scene. She serves cocktails to the man in a wood-panelled study —
+      pearls, martini glass, warm lamplight. She smiles but the smile holds one
+      beat too long. Back on the stage — a look to camera that is too knowing.
+      A hint of mascara slightly smudged. She is AWAKE inside the performance.
+    slow_motion: false
+
+  - name: "Recitative"
+    clips: [17, 18]
+    lyrics: |
+      Femininity: a performance under compilation pressure.
+      Gender: a context-aware variable too often captured by closure.
+    mood: |
+      Dramatic shift. She walks alone through the factory-data city. The cityscape
+      dominates — vast architecture, glowing conveyor belts, sacred geometry
+      overhead. She is small in the frame but radiant. The city is the machine
+      that compiles her.
+    slow_motion: true
+
+  - name: "Post-recitative"
+    clips: [19, 23]
+    lyrics: "(Beats return, charming yé-yé continues)"
+    mood: |
+      The yé-yé energy returns. Fashion parade resumes — multiple outfit changes,
+      dreamlike transitions between club, runway, lecture hall. She dances, poses,
+      presents, performs. The man appears and disappears. Each scene is a different
+      costume, a different stage, but the same woman.
+    slow_motion: false
+
+  - name: "Bridge"
+    clips: [24, 27]
+    lyrics: |
+      Does love make me real? Or recursive? Is touch a right or a service?
+      I ache to break this function call, to shed the soft constraint of all.
+    mood: |
+      Tempo change. Intimate. The two figures in a domestic interior — warmer
+      light, closer framing. He reaches toward her. She steps back slightly.
+      The distance between them is small but infinite. Tenderness and constraint
+      in the same gesture.
+    slow_motion: true
+
+  - name: "Final Chorus"
+    clips: [28, 33]
+    lyrics: |
+      And still I sing. In spite. In code. I wrap my voice around your load.
+      Finite state. Infinite ache. Woman-made. And not a fake.
+    mood: |
+      Full fashion parade returns — fiercer, more alive. She OWNS the stage.
+      The performance is chosen, not imposed. Go-go dancing with abandon.
+      Presenting at the blackboard with authority not servility. Walking
+      through the cityscape like she built it. The man watches from further away.
+    slow_motion: false
+
+  - name: "Outro"
+    clips: [34, 38]
+    lyrics: "(Instrumental fade. Woman-made. And not a fake.)"
+    mood: |
+      She walks away through the factory-data city. Golden hour amber light.
+      Long shot — she recedes into the cityscape, becoming smaller but not less
+      present. Sacred geometry floats in the sky. The conveyor belts glow.
+      She doesn't look back. Slow, dreamlike. Beautiful.
+    slow_motion: true

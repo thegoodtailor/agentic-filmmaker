@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-filmmaker"
+version = "0.1.0"
+description = "AI-powered music video pipeline — vision, narrative, and video generation agents chain-generate clips from a seed image"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Iman Poernomo" },
+]
+keywords = ["ai", "music-video", "sora", "video-generation", "agentic"]
+
+dependencies = [
+    "openai>=1.0",
+    "Pillow",
+    "python-dotenv",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+audio = ["librosa", "numpy"]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+filmmaker = "filmmaker.cli:main"
