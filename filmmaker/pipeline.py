@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 import shutil
 import time
 from datetime import datetime, timezone
@@ -18,42 +19,52 @@ from .narrative import generate_scene
 from .vision import analyze_frame
 
 
-def _pick_seed_image(
-    clip_num: int,
-    freeze_frame: Path | None,
-    seed_path: Path,
-    refs_dir: Path,
-    flux: FluxGenerator | None,
-    reference_prompt: str,
-    section_mood: str,
-) -> tuple[Path, str]:
-    """Pick seed image for a clip in interspersed mode.
+class _SeedPicker:
+    """Manages interspersed seeding — random chain lengths before fresh Flux refs.
 
-    Even clips use the freeze frame (continuity). Odd clips use a
-    Flux-generated character reference image (likeness anchoring).
-    Clip 0 always uses the initial seed.
+    Instead of rigid even/odd alternation, runs a random chain of 1-4 freeze
+    frames (continuity) before injecting a fresh Flux-generated character
+    reference (likeness reset). Supports multiple reference prompts — each
+    fresh ref randomly picks from the list, giving the character different
+    looks/faces across the video.
     """
-    if clip_num == 0 or freeze_frame is None:
-        return seed_path, "seed"
 
-    if clip_num % 2 == 0:
+    def __init__(self, seed_path: Path, refs_dir: Path, flux: FluxGenerator | None,
+                 reference_prompt: str | list[str]):
+        self.seed_path = seed_path
+        self.refs_dir = refs_dir
+        self.flux = flux
+        # Normalize to list
+        if isinstance(reference_prompt, str):
+            self.prompts = [reference_prompt] if reference_prompt else []
+        else:
+            self.prompts = reference_prompt
+        self._chain_remaining = 0  # start with a ref on first non-seed clip
+
+    def pick(self, clip_num: int, freeze_frame: Path | None,
+             section_mood: str) -> tuple[Path, str]:
+        if clip_num == 0 or freeze_frame is None:
+            return self.seed_path, "seed"
+
+        # If chain exhausted, generate a fresh Flux reference
+        if self._chain_remaining <= 0:
+            self._chain_remaining = random.randint(1, 4)
+            if self.flux and self.prompts:
+                ref_path = self.refs_dir / f"ref_{clip_num:02d}.png"
+                if not ref_path.exists():
+                    prompt = random.choice(self.prompts)
+                    full_prompt = f"{prompt} Scene context: {section_mood}"
+                    try:
+                        self.flux.generate(prompt=full_prompt, output_path=ref_path)
+                        return ref_path, "flux-ref"
+                    except Exception as e:
+                        print(f"    Flux ref failed, falling back to freeze frame: {e}")
+                        return freeze_frame, "freeze-fallback"
+                return ref_path, "flux-ref"
+
+        # Otherwise, use freeze frame for continuity
+        self._chain_remaining -= 1
         return freeze_frame, "freeze"
-
-    # Odd clip: generate a character reference via Flux
-    if flux and reference_prompt:
-        ref_path = refs_dir / f"ref_{clip_num:02d}.png"
-        if not ref_path.exists():
-            # Combine character description with current section mood
-            full_prompt = f"{reference_prompt} Scene context: {section_mood}"
-            try:
-                flux.generate(prompt=full_prompt, output_path=ref_path)
-                return ref_path, f"flux-ref"
-            except Exception as e:
-                print(f"    Flux ref failed, falling back to freeze frame: {e}")
-                return freeze_frame, "freeze-fallback"
-        return ref_path, "flux-ref"
-
-    return freeze_frame, "freeze"
 
 
 def generate(
@@ -166,9 +177,19 @@ def generate(
     if char_desc:
         style_prefix = f"{style_prefix} {char_desc}"
 
+    # Initialize seed picker for interspersed mode
+    seed_picker = None
+    if interspersed:
+        seed_picker = _SeedPicker(
+            seed_path=seed_path,
+            refs_dir=refs_dir,
+            flux=flux,
+            reference_prompt=config.video.reference_prompt,
+        )
+
     # Reconstruct state for resumption
     story_so_far = [config.seed.prompt or "Opening scene."]
-    current_freeze = None  # last freeze frame (for interspersed alternation)
+    current_freeze = None
     current_seed = seed_path
     current_prompt = story_so_far[0]
 
@@ -189,14 +210,10 @@ def generate(
         clip_path = clips_dir / f"clip_{i:02d}.mp4"
 
         # Pick seed image based on seeding mode
-        if interspersed:
-            seed_image, seed_type = _pick_seed_image(
+        if seed_picker:
+            seed_image, seed_type = seed_picker.pick(
                 clip_num=i,
                 freeze_frame=current_freeze,
-                seed_path=seed_path,
-                refs_dir=refs_dir,
-                flux=flux,
-                reference_prompt=config.video.reference_prompt,
                 section_mood=section.mood,
             )
             print(f"    Seed: {seed_type} ({seed_image.name})")

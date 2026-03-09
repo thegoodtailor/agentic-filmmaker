@@ -8,3 +8,5 @@ clips/
 *.mp4
 *.wav
 *.mp3
+refs/
+*_raw.png

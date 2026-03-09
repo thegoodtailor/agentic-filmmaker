@@ -20,7 +20,7 @@ class VideoConfig:
     slow_motion_factor: float = 1.0
     seeding_mode: str = "continuous"  # "continuous" or "interspersed"
     reference_model: str = "black-forest-labs/flux.2-max"  # for interspersed mode
-    reference_prompt: str = ""  # character description for reference images
+    reference_prompt: str | list[str] = ""  # character description(s) for reference images
 
 
 @dataclass

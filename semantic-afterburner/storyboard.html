@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Semantic Afterburner — Storyboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #e0d8c8;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    padding: 2rem 2rem 4rem;
+  }
+  h1 { color: #ffd700; font-size: 1.8rem; margin-bottom: 0.3rem; }
+  .subtitle { color: #888; font-size: 0.9rem; margin-bottom: 0.5rem; }
+  .progress-bar {
+    width: 100%; height: 6px; background: #222; border-radius: 3px;
+    margin: 1rem 0 2rem; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: linear-gradient(90deg, #ffd700, #00e5ff);
+    border-radius: 3px; transition: width 0.5s;
+  }
+  .section-title {
+    color: #00e5ff; font-size: 1.1rem; margin: 2rem 0 1rem;
+    padding-bottom: 0.3rem; border-bottom: 1px solid #222;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 1.2rem;
+  }
+  .card {
+    background: #111118; border: 1px solid #222;
+    border-radius: 8px; overflow: hidden; transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #ffd700; }
+  .card.pending { opacity: 0.15; }
+  .card.error { border-color: #ff4444; }
+  .card img, .card video {
+    width: 100%; display: block; cursor: pointer;
+    aspect-ratio: 16/9; object-fit: cover; background: #0a0a0f;
+  }
+  .card .meta { padding: 0.6rem 0.8rem; font-size: 0.75rem; }
+  .card .meta .label { color: #ffd700; font-weight: bold; margin-bottom: 0.2rem; }
+  .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 0.65rem; margin-right: 4px; margin-bottom: 0.3rem;
+  }
+  .badge-ref { background: #2a1a3a; color: #bb86fc; }
+  .badge-clip { background: #1a2a1a; color: #86fc86; }
+  .badge-seed { background: #3a2a1a; color: #ffd700; }
+  .badge-freeze { background: #1a1a2a; color: #6688ff; }
+  .badge-error { background: #3a1a1a; color: #ff6666; }
+  .badge-section { background: #1a2a2a; color: #00e5ff; }
+  .prompt-text {
+    color: #777; font-size: 0.7rem; line-height: 1.3;
+    max-height: 3.9em; overflow: hidden; margin-top: 0.3rem;
+  }
+  .lightbox {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+    z-index: 1000; justify-content: center; align-items: center; cursor: pointer;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img, .lightbox video { max-width: 95%; max-height: 95%; object-fit: contain; }
+  .status-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #111; border-top: 1px solid #333;
+    padding: 0.4rem 2rem; font-size: 0.75rem;
+    display: flex; justify-content: space-between; z-index: 100;
+  }
+  .status-bar .live { color: #00e5ff; }
+  .status-bar .count { color: #ffd700; }
+  .status-bar .refresh { color: #888; cursor: pointer; }
+  .status-bar .refresh:hover { color: #fff; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #00e5ff; margin-right: 6px; animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<h1>Semantic Afterburner</h1>
+<p class="subtitle">Cassiyah — Aql & Kapital</p>
+<div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+
+<div id="content">Loading...</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lb-img" style="display:none">
+  <video id="lb-vid" controls style="display:none"></video>
+</div>
+
+<div class="status-bar">
+  <span id="status-left"><span class="live-dot"></span><span class="live" id="status-live">Watching...</span></span>
+  <span id="status-count" class="count"></span>
+  <span class="refresh" onclick="refresh()">↻ Refresh</span>
+</div>
+
+<script>
+const TOTAL_CLIPS = 41;
+let autoRefreshId = null;
+let manifest = null;
+
+function showLightbox(src, type) {
+  const lb = document.getElementById('lightbox');
+  const img = document.getElementById('lb-img');
+  const vid = document.getElementById('lb-vid');
+  if (type === 'video') {
+    img.style.display = 'none'; vid.style.display = 'block'; vid.src = src;
+  } else {
+    vid.style.display = 'none'; vid.pause?.();
+    img.style.display = 'block'; img.src = src;
+  }
+  lb.classList.add('active');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+  const vid = document.getElementById('lb-vid'); vid.pause?.(); vid.src = '';
+}
+
+function makeCard(src, label, badges, prompt, pending) {
+  const isVideo = src.endsWith('.mp4');
+  const cls = pending ? 'card pending' : 'card';
+  const badgeHtml = badges.map(b => `<span class="badge badge-${b[0]}">${b[1]}</span>`).join('');
+  const media = isVideo
+    ? `<video src="${src}" muted loop playsinline preload="metadata"
+        onmouseover="this.play()" onmouseout="this.pause();this.currentTime=0"
+        onclick="event.stopPropagation();showLightbox('${src}','video')"></video>`
+    : `<img src="${src}" onclick="showLightbox('${src}','image')" loading="lazy"
+        onerror="this.closest('.card').classList.add('pending')">`;
+  return `<div class="${cls}">${media}<div class="meta">
+    ${badgeHtml}<div class="label">${label}</div>
+    ${prompt ? `<div class="prompt-text">${prompt}</div>` : ''}
+  </div></div>`;
+}
+
+async function loadManifest() {
+  try {
+    const resp = await fetch('clips/manifest.json?t=' + Date.now());
+    if (resp.ok) { manifest = await resp.json(); return manifest; }
+  } catch(e) {}
+  return null;
+}
+
+async function scanRefs() {
+  // Try to load known test refs + generated refs
+  const found = [];
+  // Test refs (from iterations)
+  for (let i = 1; i <= 20; i++) {
+    const prefixes = [
+      `test_${String(i).padStart(2,'0')}-block-party`,
+      `test_${String(i).padStart(2,'0')}-rooftop-cypher`,
+      `test_${String(i).padStart(2,'0')}-subway`,
+      `test_${String(i).padStart(2,'0')}-nightclub`,
+      `test_${String(i).padStart(2,'0')}-block-party-v2`,
+      `test_${String(i).padStart(2,'0')}-rooftop-cypher-v2`,
+      `test_${String(i).padStart(2,'0')}-subway-v2`,
+      `test_${String(i).padStart(2,'0')}-nightclub-v2`,
+      `test_${String(i).padStart(2,'0')}-block-party-v3`,
+      `test_${String(i).padStart(2,'0')}-rooftop-cypher-v3`,
+      `test_${String(i).padStart(2,'0')}-subway-v3`,
+      `test_${String(i).padStart(2,'0')}-nightclub-v3`,
+      `test_${String(i).padStart(2,'0')}-block-party-v4`,
+      `test_${String(i).padStart(2,'0')}-rooftop-cypher-v4`,
+      `test_${String(i).padStart(2,'0')}-subway-v4`,
+      `test_${String(i).padStart(2,'0')}-nightclub-v4`,
+    ];
+    for (const p of prefixes) {
+      found.push({path: `refs/${p}.png`, label: p.replace('test_','').replace(/-/g,' ')});
+    }
+  }
+  // Generated refs from pipeline
+  for (let i = 0; i < TOTAL_CLIPS; i++) {
+    found.push({path: `refs/ref_${String(i).padStart(2,'0')}.png`, label: `Pipeline Ref ${i}`});
+  }
+  return found;
+}
+
+async function render() {
+  await loadManifest();
+  const refs = await scanRefs();
+  const completedClips = manifest?.clips?.filter(c => c.status === 'ok').length || 0;
+  const pct = Math.round((completedClips / TOTAL_CLIPS) * 100);
+  document.getElementById('progress').style.width = pct + '%';
+
+  let html = '';
+
+  // --- Reference images ---
+  html += '<div class="section-title">Character References (Flux)</div><div class="grid">';
+  for (const ref of refs) {
+    html += makeCard(ref.path, ref.label, [['ref','FLUX REF']], '', false);
+  }
+  html += '</div>';
+
+  // --- Seed ---
+  html += '<div class="section-title">Seed Image</div><div class="grid">';
+  html += makeCard('clips/seed.png', 'Initial Seed', [['seed','SEED']], '', false);
+  html += '</div>';
+
+  // --- Clips ---
+  html += '<div class="section-title">Generated Clips</div><div class="grid">';
+  for (let i = 0; i < TOTAL_CLIPS; i++) {
+    const num = String(i).padStart(2, '0');
+    const clipData = manifest?.clips?.[i];
+    const status = clipData?.status;
+    const section = clipData?.section || '';
+    const seedType = clipData?.seed_type || '';
+    const prompt = clipData?.prompt || '';
+    const vision = clipData?.vision_analysis || '';
+
+    const badges = [];
+    if (section) badges.push(['section', section]);
+    if (seedType === 'flux-ref') badges.push(['ref', 'FLUX REF']);
+    else if (seedType === 'freeze') badges.push(['freeze', 'FREEZE']);
+    else if (seedType === 'seed') badges.push(['seed', 'SEED']);
+    if (status === 'error') badges.push(['error', 'ERROR']);
+    if (status === 'ok') badges.push(['clip', 'OK']);
+
+    const pending = status !== 'ok';
+    const displayText = vision ? vision.substring(0, 150) + '...' : prompt.substring(0, 150);
+    html += makeCard(`clips/clip_${num}.mp4`, `Clip ${num}`, badges, displayText, pending);
+  }
+  html += '</div>';
+
+  document.getElementById('content').innerHTML = html;
+  document.getElementById('status-count').textContent =
+    `${completedClips}/${TOTAL_CLIPS} clips | ${pct}%`;
+
+  // Remove cards for images that don't exist
+  setTimeout(() => {
+    document.querySelectorAll('.card img').forEach(img => {
+      img.addEventListener('error', () => img.closest('.card').remove(), {once: true});
+    });
+  }, 500);
+}
+
+function refresh() { render(); }
+
+// Auto-refresh every 30 seconds
+render();
+autoRefreshId = setInterval(render, 30000);
+document.getElementById('status-live').textContent = 'Auto-refresh 30s';
+</script>
+</body>
+</html>

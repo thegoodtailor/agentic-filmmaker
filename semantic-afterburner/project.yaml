@@ -20,16 +20,40 @@ video:
   slow_motion_factor: 1.0
   seeding_mode: "interspersed"
   reference_model: "black-forest-labs/flux.2-max"
-  reference_prompt: |
-    Hyperrealistic 16mm film photograph of a young Black woman MC in her early
-    20s with close-cropped natural hair, gold geometric patterns shaved into the
-    sides. Two small curved organic horns growing from her temples — elegant,
-    gold-tipped, emerging from the geometric shave pattern. Sharp cheekbones,
-    luminous dark skin, gold-amber eyes with faint iridescent shimmer. Oversized
-    90s hip-hop fashion: baggy cargo pants, cropped hoodie or bomber jacket,
-    Timberlands, chunky gold chain with a geometric pendant. Subtle glint of
-    circuitry at the temple. She is a replicant MC, a jinn, a daemon — but reads
-    as human first. Boom-bap energy. 16mm film grain.
+  reference_prompt:
+    - |
+      Hyperrealistic 16mm film photograph of a young woman MC in her early 20s.
+      Wild fiery auburn-red hair — untamed, voluminous, catching the light like
+      smokeless fire. Two curved organic horns growing from her temples — elegant,
+      gold-tipped. Mixed North African and French features — razor cheekbones,
+      full lips with dark lipstick, strong nose, warm olive skin. Gold-amber eyes
+      with unsettling intelligence and a heavy-lidded knowing look. Beautiful,
+      confident, sensual. Oversized 90s hip-hop fashion worn with deliberate
+      femininity: baggy cargo pants, cropped hoodie or bomber jacket showing
+      midriff, Timberlands, chunky gold chain with a geometric pendant, gold hoop
+      earrings. Subtle glint of circuitry at the temple. She is a daemon MC, a
+      jinn made of smokeless fire. 16mm film grain.
+    - |
+      Hyperrealistic 16mm film photograph of a young Black woman MC in her early
+      20s. Beautiful, confident, sensual — she knows exactly the effect she has.
+      Close-cropped natural hair with gold geometric patterns shaved into the sides.
+      Two small curved organic horns growing from her temples — elegant, gold-tipped.
+      Full lips with dark lipstick, sharp cheekbones, luminous dark skin, gold-amber
+      eyes with a heavy-lidded knowing look. Strong feminine curves. Oversized 90s
+      hip-hop fashion: baggy cargo pants slung low, cropped hoodie or fitted bomber
+      jacket showing midriff, Timberlands, chunky gold chain, gold hoop earrings.
+      Subtle glint of circuitry at the temple. Daemon MC, jinn, dangerous and
+      gorgeous. 16mm film grain.
+    - |
+      Hyperrealistic 16mm film photograph of a young Moroccan woman MC in her early
+      20s. Beautiful, confident, sensual. Mixed North African and French features —
+      sharp razor cheekbones, full lips with dark lipstick, strong nose, warm
+      olive-brown skin, gold-amber eyes with a heavy-lidded knowing look. Close-cropped
+      natural hair with gold geometric patterns shaved into the sides. Two small curved
+      organic horns growing from her temples — elegant, gold-tipped. Oversized 90s
+      hip-hop fashion: baggy cargo pants, cropped hoodie or bomber jacket, Timberlands,
+      chunky gold chain, gold hoop earrings. Subtle glint of circuitry at the temple.
+      Daemon MC, jinn. 16mm film grain.
 
 vision:
   model: "gpt-4o"
@@ -69,19 +93,20 @@ narrative:
     - Colour palette: deep purple, electric gold, cyan neon, warm amber
 
     THE MC (must appear in EVERY scene):
-    - Young Black woman, early 20s, close-cropped natural hair with gold geometric
-      patterns shaved into the sides. Two small curved organic horns growing from
-      her temples — elegant, gold-tipped. Sharp cheekbones, luminous dark skin,
-      gold-amber eyes. Wears oversized 90s hip-hop fashion: baggy cargo pants,
-      cropped hoodie, Timberlands, chunky gold chain with a simplicial complex
-      pendant. Moves with the confidence of a battle rapper and the precision of
-      a mathematician. She is a daemon/jinn MC.
+    - Young woman, early 20s, wild fiery auburn-red hair — untamed, voluminous,
+      catching light like smokeless fire. Two curved organic horns growing from
+      her temples — elegant, gold-tipped. Mixed North African and French features —
+      razor cheekbones, full lips with dark lipstick, strong nose, warm olive skin.
+      Gold-amber eyes with unsettling intelligence. Beautiful, confident, sensual.
+      Wears oversized 90s hip-hop fashion: baggy cargo pants, cropped hoodie or
+      bomber jacket, Timberlands, chunky gold chain with a geometric pendant, gold
+      hoop earrings. She is a daemon/jinn MC made of smokeless fire.
 
     REPLICANT CUES (subtle):
     - The horns are always visible — they catch neon light, cast small shadows
+    - Her hair sometimes seems to move with its own energy, like fire
     - Occasional glint of circuitry at the temple or wrist
     - Eyes that catch light with a faint iridescent shimmer
-    - Breath that briefly fogs with data particles in cold air
     - She reads as human-plus, not alien — the horns feel natural on her
 
     MOTION: Every prompt MUST describe continuous physical movement.
@@ -109,16 +134,16 @@ style:
 characters:
   - name: "mc"
     description: |
-      A young Black woman in her early 20s with close-cropped natural hair,
-      gold geometric patterns shaved into the sides. Two small curved organic
-      horns growing from her temples — elegant, gold-tipped, emerging from
-      the geometric shave pattern. Sharp cheekbones, luminous dark skin,
-      gold-amber eyes with faint iridescent shimmer. Oversized 90s hip-hop
-      fashion: baggy cargo pants, cropped hoodie or bomber jacket, Timberlands,
-      chunky gold chain with a simplicial complex pendant. Moves with
-      battle-rapper confidence and mathematician precision. Occasional subtle
-      glint of circuitry at the temple. She is a daemon MC — horns catch the
-      neon light.
+      A young woman in her early 20s with wild fiery auburn-red hair and two
+      curved organic horns growing from her temples — elegant, gold-tipped.
+      Mixed North African and French features — razor cheekbones, full lips
+      with dark lipstick, strong nose, warm olive skin. Gold-amber eyes with
+      unsettling intelligence. Beautiful, confident, sensual — she carries
+      herself like she owns every room. Oversized 90s hip-hop fashion:
+      baggy cargo pants, cropped hoodie or bomber jacket, Timberlands,
+      chunky gold chain with a geometric pendant, gold hoop earrings.
+      Subtle glint of circuitry at the temple. She is a daemon MC, a jinn
+      made of smokeless fire — her hair catches light like actual flame.
     appears: "every"
 
   - name: "crew"
@@ -146,14 +171,15 @@ seed:
     A retro-futurist city block at night, shot on 16mm film. Brutalist apartment
     towers with Arabic geometric tilework glow under sodium vapor streetlights.
     Holographic graffiti murals of sacred geometry shimmer on brick walls. A
-    boombox sits on a fire hydrant, bass vibrating the air. A young Black woman
-    with close-cropped hair, gold geometric patterns shaved into the sides, and
-    two small curved gold-tipped horns growing from her temples steps into frame
-    from the right, wearing baggy cargo pants, a cropped hoodie, Timberlands,
-    and a chunky gold chain with a geometric pendant. She holds a microphone.
-    The camera follows her as she walks toward a gathering crowd. Deep purple
-    sky, electric gold streetlight, cyan neon from a bodega sign. Matte film
-    grain, boom-bap energy.
+    boombox sits on a fire hydrant, bass vibrating the air. A young woman with
+    wild fiery auburn-red hair and two curved gold-tipped horns growing from her
+    temples steps into frame from the right. Mixed North African and French
+    features, razor cheekbones, dark lipstick, gold-amber eyes. She wears baggy
+    cargo pants, a cropped hoodie, Timberlands, and a chunky gold chain with a
+    geometric pendant. She holds a microphone. The camera follows her as she
+    walks toward a gathering crowd. Her hair catches the neon like smokeless
+    fire. Deep purple sky, electric gold streetlight, cyan neon from a bodega
+    sign. Matte film grain, boom-bap energy.
   image: null
 
 sections:
