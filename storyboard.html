@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agentic Filmmaker — Storyboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #e0d8c8;
+    font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+    overflow: hidden; height: 100vh;
+  }
+
+  /* ─── Top bar ─── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.6rem 1.2rem; background: #111118; border-bottom: 1px solid #222;
+    height: 48px; flex-shrink: 0;
+  }
+  .topbar h1 { font-size: 1rem; color: #ffd700; }
+  .topbar .meta { font-size: 0.7rem; color: #888; }
+  .topbar .meta span { margin-left: 1rem; }
+  .topbar .progress-wrap {
+    width: 180px; height: 6px; background: #222; border-radius: 3px; overflow: hidden;
+  }
+  .topbar .progress-fill {
+    height: 100%; background: linear-gradient(90deg, #ffd700, #00e5ff);
+    border-radius: 3px; transition: width 0.5s;
+  }
+
+  /* ─── Layout: three panels ─── */
+  .layout {
+    display: flex; height: calc(100vh - 48px);
+  }
+
+  /* ─── Left: timeline strip ─── */
+  .timeline {
+    width: 140px; flex-shrink: 0; overflow-y: auto; background: #0d0d14;
+    border-right: 1px solid #222; padding: 0.5rem 0;
+  }
+  .timeline::-webkit-scrollbar { width: 4px; }
+  .timeline::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .timeline-item {
+    padding: 0.35rem 0.6rem; cursor: pointer; font-size: 0.65rem;
+    border-left: 3px solid transparent; transition: all 0.15s;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .timeline-item:hover { background: #1a1a24; }
+  .timeline-item.active { background: #1a1a24; border-left-color: #ffd700; }
+  .timeline-item.ok .dot { background: #4caf50; }
+  .timeline-item.error .dot { background: #ff4444; }
+  .timeline-item.pending .dot { background: #333; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .timeline-item .num { color: #ffd700; font-weight: bold; width: 22px; }
+  .timeline-item .sec { color: #666; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 70px; }
+
+  /* ─── Centre: main viewer ─── */
+  .viewer {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+  .viewer-stage {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    background: #000; position: relative; min-height: 0;
+  }
+  .viewer-stage video, .viewer-stage img {
+    max-width: 100%; max-height: 100%; object-fit: contain;
+  }
+  .viewer-stage .nav-btn {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(0,0,0,0.6); border: 1px solid #333; color: #ffd700;
+    font-size: 1.5rem; padding: 0.8rem 0.6rem; cursor: pointer;
+    border-radius: 4px; transition: all 0.15s; z-index: 10;
+  }
+  .viewer-stage .nav-btn:hover { background: rgba(255,215,0,0.15); border-color: #ffd700; }
+  .viewer-stage .nav-btn.prev { left: 8px; }
+  .viewer-stage .nav-btn.next { right: 8px; }
+  .viewer-stage .empty-msg {
+    color: #444; font-size: 0.9rem; text-align: center;
+  }
+
+  /* Seed overlay (small, bottom-left of stage) */
+  .seed-overlay {
+    position: absolute; bottom: 8px; left: 8px; z-index: 10;
+    border: 1px solid #333; border-radius: 4px; overflow: hidden;
+    cursor: pointer; transition: all 0.2s; opacity: 0.7;
+  }
+  .seed-overlay:hover { opacity: 1; border-color: #ffd700; transform: scale(1.05); }
+  .seed-overlay img { width: 120px; height: 68px; object-fit: cover; display: block; }
+  .seed-overlay .seed-label {
+    background: rgba(0,0,0,0.8); font-size: 0.55rem; padding: 1px 4px;
+    color: #ffd700; text-align: center;
+  }
+
+  /* Playback controls */
+  .controls {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0.8rem; padding: 0.5rem; background: #111118;
+    border-top: 1px solid #222; border-bottom: 1px solid #222;
+  }
+  .controls button {
+    background: #1a1a24; border: 1px solid #333; color: #e0d8c8;
+    padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer;
+    font-family: inherit; font-size: 0.7rem; transition: all 0.15s;
+  }
+  .controls button:hover { border-color: #ffd700; color: #ffd700; }
+  .controls button.active { background: #2a2a1a; border-color: #ffd700; color: #ffd700; }
+  .controls .clip-label { font-size: 0.75rem; color: #ffd700; min-width: 80px; text-align: center; }
+
+  /* ─── Right: detail panel ─── */
+  .detail {
+    width: 340px; flex-shrink: 0; overflow-y: auto; background: #0d0d14;
+    border-left: 1px solid #222; padding: 1rem;
+  }
+  .detail::-webkit-scrollbar { width: 4px; }
+  .detail::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+  .detail h3 {
+    font-size: 0.75rem; color: #00e5ff; margin-bottom: 0.4rem;
+    padding-bottom: 0.2rem; border-bottom: 1px solid #1a1a24;
+  }
+  .detail .section-block { margin-bottom: 1rem; }
+  .detail .badge {
+    display: inline-block; padding: 1px 6px; border-radius: 3px;
+    font-size: 0.6rem; margin-right: 4px; margin-bottom: 0.3rem;
+  }
+  .badge-ref { background: #2a1a3a; color: #bb86fc; }
+  .badge-clip { background: #1a2a1a; color: #86fc86; }
+  .badge-seed { background: #3a2a1a; color: #ffd700; }
+  .badge-freeze { background: #1a1a2a; color: #6688ff; }
+  .badge-error { background: #3a1a1a; color: #ff6666; }
+  .badge-section { background: #1a2a2a; color: #00e5ff; }
+  .detail .prompt-text {
+    color: #bbb; font-size: 0.68rem; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .detail .vision-text {
+    color: #999; font-size: 0.65rem; line-height: 1.4;
+    white-space: pre-wrap; word-break: break-word; font-style: italic;
+  }
+  .detail .timestamp {
+    color: #555; font-size: 0.55rem; margin-top: 0.3rem;
+  }
+  .detail .seed-preview {
+    width: 100%; border-radius: 4px; margin-top: 0.4rem;
+    border: 1px solid #222; cursor: pointer;
+  }
+  .detail .seed-preview:hover { border-color: #ffd700; }
+
+  /* ─── Bottom: seed gallery (collapsible) ─── */
+  .seed-gallery-toggle {
+    display: flex; align-items: center; justify-content: center;
+    padding: 0.3rem; background: #111118; border-top: 1px solid #222;
+    cursor: pointer; font-size: 0.65rem; color: #888;
+  }
+  .seed-gallery-toggle:hover { color: #ffd700; }
+  .seed-gallery {
+    display: none; background: #0a0a0f; border-top: 1px solid #222;
+    padding: 0.6rem; overflow-x: auto; white-space: nowrap;
+  }
+  .seed-gallery.open { display: flex; gap: 0.5rem; align-items: flex-start; }
+  .seed-thumb {
+    flex-shrink: 0; width: 140px; cursor: pointer; border: 1px solid #222;
+    border-radius: 4px; overflow: hidden; transition: border-color 0.15s;
+  }
+  .seed-thumb:hover { border-color: #ffd700; }
+  .seed-thumb img { width: 100%; height: 79px; object-fit: cover; display: block; }
+  .seed-thumb .label {
+    font-size: 0.55rem; padding: 2px 4px; background: #111;
+    color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* ─── Lightbox ─── */
+  .lightbox {
+    display: none; position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%; background: rgba(0,0,0,0.95);
+    z-index: 1000; justify-content: center; align-items: center; cursor: pointer;
+  }
+  .lightbox.active { display: flex; }
+  .lightbox img { max-width: 95%; max-height: 95%; object-fit: contain; }
+
+  /* ─── Auto-play progress bar ─── */
+  .autoplay-bar {
+    height: 3px; background: #222; width: 100%;
+  }
+  .autoplay-bar .fill {
+    height: 100%; width: 0%; background: #ffd700;
+    transition: width linear;
+  }
+
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+    background: #00e5ff; margin-right: 4px; animation: pulse 2s infinite; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:1rem">
+    <h1 id="title">Storyboard</h1>
+    <span class="meta">
+      <span id="artist"></span>
+      <span id="model-info"></span>
+    </span>
+  </div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <span class="meta"><span class="live-dot"></span><span id="status-text">Loading...</span></span>
+    <span class="meta" id="count-text"></span>
+    <div class="progress-wrap"><div class="progress-fill" id="progress"></div></div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- Timeline -->
+  <div class="timeline" id="timeline"></div>
+
+  <!-- Main viewer -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+    <div class="viewer-stage" id="stage">
+      <button class="nav-btn prev" onclick="navigate(-1)">&#9664;</button>
+      <div class="empty-msg" id="empty-msg">No clips yet</div>
+      <video id="main-video" style="display:none" muted loop playsinline></video>
+      <img id="main-img" style="display:none">
+      <div class="seed-overlay" id="seed-overlay" style="display:none" onclick="showSeedLightbox()">
+        <img id="seed-overlay-img">
+        <div class="seed-label" id="seed-overlay-label">SEED</div>
+      </div>
+      <button class="nav-btn next" onclick="navigate(1)">&#9666;</button>
+    </div>
+    <div class="autoplay-bar"><div class="fill" id="autoplay-fill"></div></div>
+    <div class="controls">
+      <button onclick="navigate(-1)">&#9664; Prev</button>
+      <button id="play-btn" onclick="togglePlay()">&#9654; Play</button>
+      <button onclick="navigate(1)">Next &#9654;</button>
+      <span class="clip-label" id="clip-label">—</span>
+      <button id="autoplay-btn" onclick="toggleAutoplay()">Auto &#9654;</button>
+      <button onclick="toggleSpeed()">Speed: <span id="speed-label">1x</span></button>
+    </div>
+
+    <!-- Seed gallery -->
+    <div class="seed-gallery-toggle" onclick="toggleSeedGallery()">
+      <span id="gallery-toggle-text">&#9660; Seed Images &amp; References</span>
+    </div>
+    <div class="seed-gallery" id="seed-gallery"></div>
+  </div>
+
+  <!-- Detail panel -->
+  <div class="detail" id="detail">
+    <div style="color:#444;font-size:0.75rem">Select a clip to see details</div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <img id="lb-img">
+</div>
+
+<script>
+let manifest = null;
+let currentClip = -1;
+let autoplayId = null;
+let autoplaySpeed = 8000; // ms per clip
+let speedModes = [8000, 4000, 2000, 12000];
+let speedLabels = ['1x', '2x', '4x', '0.5x'];
+let speedIdx = 0;
+let refreshId = null;
+
+// ─── Determine base path from URL or default ───
+function getBasePath() {
+  // Look for manifest.json relative to the HTML file's served location
+  // Support being served from project dir or from a subdir
+  const path = window.location.pathname;
+  // If served at /afterburner/, clips are at /afterburner/clips/
+  return '';
+}
+
+async function loadManifest() {
+  try {
+    const resp = await fetch('clips/manifest.json?t=' + Date.now());
+    if (resp.ok) { manifest = await resp.json(); return true; }
+  } catch(e) {}
+  return false;
+}
+
+function buildTimeline() {
+  const el = document.getElementById('timeline');
+  if (!manifest) { el.innerHTML = '<div style="padding:1rem;color:#444;font-size:0.7rem">Waiting for manifest...</div>'; return; }
+
+  const total = manifest.n_clips || 0;
+  let html = '';
+  for (let i = 0; i < total; i++) {
+    const clip = manifest.clips?.[i];
+    const status = clip?.status || 'pending';
+    const section = clip?.section || '';
+    const active = i === currentClip ? ' active' : '';
+    html += `<div class="timeline-item ${status}${active}" onclick="selectClip(${i})" data-clip="${i}">
+      <div class="dot"></div>
+      <span class="num">${String(i).padStart(2,'0')}</span>
+      <span class="sec">${section}</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+
+  // Scroll active into view
+  const activeEl = el.querySelector('.active');
+  if (activeEl) activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function selectClip(i) {
+  if (!manifest) return;
+  currentClip = i;
+  buildTimeline();
+  showClip(i);
+  showDetail(i);
+}
+
+function showClip(i) {
+  const video = document.getElementById('main-video');
+  const img = document.getElementById('main-img');
+  const empty = document.getElementById('empty-msg');
+  const overlay = document.getElementById('seed-overlay');
+  const label = document.getElementById('clip-label');
+
+  const clip = manifest?.clips?.[i];
+  if (!clip || clip.status !== 'ok') {
+    video.style.display = 'none';
+    img.style.display = 'none';
+    empty.style.display = 'block';
+    empty.textContent = clip ? `Clip ${i} — ${clip.status}` : `Clip ${i} — pending`;
+    overlay.style.display = 'none';
+    label.textContent = `Clip ${String(i).padStart(2,'0')}`;
+    return;
+  }
+
+  empty.style.display = 'none';
+  label.textContent = `Clip ${String(i).padStart(2,'0')} / ${manifest.n_clips - 1}`;
+
+  // Show video
+  const clipSrc = `clips/${clip.video}`;
+  video.style.display = 'block';
+  img.style.display = 'none';
+  video.src = clipSrc;
+  video.play();
+
+  // Show seed overlay
+  const seedPath = resolveSeedPath(clip);
+  if (seedPath) {
+    overlay.style.display = 'block';
+    document.getElementById('seed-overlay-img').src = seedPath;
+    document.getElementById('seed-overlay-label').textContent = clip.seed_type?.toUpperCase() || 'SEED';
+  } else {
+    overlay.style.display = 'none';
+  }
+}
+
+function resolveSeedPath(clip) {
+  if (!clip?.seed_image) return null;
+  const si = clip.seed_image;
+  // seed_image can be absolute or relative — try to make it work
+  if (si.includes('clips/')) return si.substring(si.indexOf('clips/'));
+  if (si.includes('refs/')) return si.substring(si.indexOf('refs/'));
+  if (si.startsWith('/')) {
+    // Try to extract the relative part after the project dir
+    const parts = si.split('/');
+    const idx = parts.indexOf('clips');
+    const ridx = parts.indexOf('refs');
+    if (idx >= 0) return parts.slice(idx).join('/');
+    if (ridx >= 0) return parts.slice(ridx).join('/');
+  }
+  return si;
+}
+
+function showDetail(i) {
+  const el = document.getElementById('detail');
+  const clip = manifest?.clips?.[i];
+  if (!clip) {
+    el.innerHTML = `<div class="section-block">
+      <h3>Clip ${String(i).padStart(2,'0')}</h3>
+      <div class="prompt-text" style="color:#444">Pending — not yet generated</div>
+    </div>`;
+    return;
+  }
+
+  const badges = [];
+  if (clip.section) badges.push(`<span class="badge badge-section">${clip.section}</span>`);
+  if (clip.seed_type === 'flux-ref') badges.push('<span class="badge badge-ref">FLUX REF</span>');
+  else if (clip.seed_type === 'freeze') badges.push('<span class="badge badge-freeze">FREEZE</span>');
+  else if (clip.seed_type === 'seed') badges.push('<span class="badge badge-seed">SEED</span>');
+  if (clip.status === 'ok') badges.push('<span class="badge badge-clip">OK</span>');
+  if (clip.status === 'error') badges.push('<span class="badge badge-error">ERROR</span>');
+
+  let html = `<div class="section-block">
+    <h3>Clip ${String(i).padStart(2,'0')}</h3>
+    <div>${badges.join('')}</div>
+  </div>`;
+
+  // Prompt
+  html += `<div class="section-block">
+    <h3>Scene Prompt</h3>
+    <div class="prompt-text">${escHtml(clip.prompt || '—')}</div>
+  </div>`;
+
+  // Vision
+  if (clip.vision_analysis) {
+    html += `<div class="section-block">
+      <h3>Vision Analysis</h3>
+      <div class="vision-text">${escHtml(clip.vision_analysis)}</div>
+    </div>`;
+  }
+
+  // Next prompt (what was generated for the next clip)
+  if (clip.next_prompt) {
+    html += `<div class="section-block">
+      <h3>Next Scene (generated)</h3>
+      <div class="prompt-text">${escHtml(clip.next_prompt)}</div>
+    </div>`;
+  }
+
+  // Seed image
+  const seedPath = resolveSeedPath(clip);
+  if (seedPath) {
+    html += `<div class="section-block">
+      <h3>Seed Image (${clip.seed_type || '?'})</h3>
+      <img class="seed-preview" src="${seedPath}" onclick="showLightbox('${seedPath}')"
+           onerror="this.style.display='none'">
+    </div>`;
+  }
+
+  // Error
+  if (clip.error) {
+    html += `<div class="section-block">
+      <h3>Error</h3>
+      <div class="prompt-text" style="color:#ff6666">${escHtml(clip.error)}</div>
+    </div>`;
+  }
+
+  // Timestamp
+  if (clip.timestamp) {
+    const t = new Date(clip.timestamp);
+    html += `<div class="timestamp">${t.toLocaleString()}</div>`;
+  }
+
+  el.innerHTML = html;
+  el.scrollTop = 0;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Navigation ───
+function navigate(dir) {
+  if (!manifest) return;
+  const total = manifest.n_clips || 0;
+  let next = currentClip + dir;
+  if (next < 0) next = 0;
+  if (next >= total) next = total - 1;
+  selectClip(next);
+}
+
+function togglePlay() {
+  const video = document.getElementById('main-video');
+  if (video.paused) { video.play(); }
+  else { video.pause(); }
+}
+
+// ─── Autoplay (sequential viewing) ───
+function toggleAutoplay() {
+  const btn = document.getElementById('autoplay-btn');
+  const fill = document.getElementById('autoplay-fill');
+  if (autoplayId) {
+    clearInterval(autoplayId);
+    autoplayId = null;
+    btn.classList.remove('active');
+    btn.textContent = 'Auto \u25B6';
+    fill.style.width = '0%';
+    fill.style.transition = 'none';
+    return;
+  }
+
+  btn.classList.add('active');
+  btn.textContent = 'Auto \u25A0';
+
+  function step() {
+    const total = manifest?.n_clips || 0;
+    // Find next OK clip
+    let next = currentClip + 1;
+    while (next < total && manifest.clips?.[next]?.status !== 'ok') next++;
+    if (next >= total) {
+      toggleAutoplay(); // stop at end
+      return;
+    }
+    selectClip(next);
+
+    // Animate progress bar
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+    requestAnimationFrame(() => {
+      fill.style.transition = `width ${autoplaySpeed}ms linear`;
+      fill.style.width = '100%';
+    });
+  }
+
+  step();
+  autoplayId = setInterval(step, autoplaySpeed);
+}
+
+function toggleSpeed() {
+  speedIdx = (speedIdx + 1) % speedModes.length;
+  autoplaySpeed = speedModes[speedIdx];
+  document.getElementById('speed-label').textContent = speedLabels[speedIdx];
+  // Restart autoplay if running
+  if (autoplayId) {
+    toggleAutoplay();
+    toggleAutoplay();
+  }
+}
+
+// ─── Seed gallery ───
+function toggleSeedGallery() {
+  const g = document.getElementById('seed-gallery');
+  const t = document.getElementById('gallery-toggle-text');
+  g.classList.toggle('open');
+  t.innerHTML = g.classList.contains('open')
+    ? '&#9650; Seed Images &amp; References'
+    : '&#9660; Seed Images &amp; References';
+}
+
+function buildSeedGallery() {
+  const el = document.getElementById('seed-gallery');
+  if (!manifest?.clips) return;
+
+  const seeds = new Map();
+  // Add the initial seed
+  seeds.set('clips/seed.png', { path: 'clips/seed.png', label: 'Initial Seed', type: 'seed' });
+
+  for (const clip of manifest.clips) {
+    if (clip.status !== 'ok') continue;
+    const sp = resolveSeedPath(clip);
+    if (sp && !seeds.has(sp)) {
+      seeds.set(sp, { path: sp, label: `Clip ${String(clip.clip).padStart(2,'0')} seed`, type: clip.seed_type });
+    }
+  }
+
+  // Also scan for ref images
+  for (let i = 0; i < (manifest.n_clips || 0); i++) {
+    const rp = `refs/ref_${String(i).padStart(2,'0')}.png`;
+    if (!seeds.has(rp)) {
+      seeds.set(rp, { path: rp, label: `Flux Ref ${String(i).padStart(2,'0')}`, type: 'flux-ref' });
+    }
+  }
+
+  let html = '';
+  for (const [path, info] of seeds) {
+    html += `<div class="seed-thumb" onclick="showLightbox('${path}')">
+      <img src="${path}" onerror="this.closest('.seed-thumb').style.display='none'" loading="lazy">
+      <div class="label">${info.label} (${info.type})</div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+// ─── Lightbox ───
+function showLightbox(src) {
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function showSeedLightbox() {
+  const src = document.getElementById('seed-overlay-img').src;
+  if (src) showLightbox(src);
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('active');
+}
+
+// ─── Keyboard shortcuts ───
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'j') navigate(-1);
+  else if (e.key === 'ArrowRight' || e.key === 'k') navigate(1);
+  else if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'a') toggleAutoplay();
+  else if (e.key === 'Escape') closeLightbox();
+  else if (e.key === 'f') {
+    const video = document.getElementById('main-video');
+    if (video.style.display !== 'none') {
+      video.requestFullscreen?.();
+    }
+  }
+});
+
+// ─── Update header ───
+function updateHeader() {
+  if (!manifest) return;
+  document.getElementById('title').textContent = manifest.song || 'Storyboard';
+  document.title = `${manifest.song || 'Storyboard'} — Agentic Filmmaker`;
+  document.getElementById('artist').textContent = manifest.artist || '';
+  document.getElementById('model-info').textContent =
+    `${manifest.video_model || ''} / ${manifest.narrative_model || ''}`;
+
+  const total = manifest.n_clips || 1;
+  const ok = manifest.clips?.filter(c => c.status === 'ok').length || 0;
+  const pct = Math.round((ok / total) * 100);
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('count-text').textContent = `${ok}/${total} clips (${pct}%)`;
+  document.getElementById('status-text').textContent =
+    ok >= total ? 'Complete' : `Generating... ${ok}/${total}`;
+}
+
+// ─── Main render ───
+async function render() {
+  const ok = await loadManifest();
+  if (!ok) {
+    document.getElementById('status-text').textContent = 'Waiting for manifest...';
+    return;
+  }
+  updateHeader();
+  buildTimeline();
+  buildSeedGallery();
+
+  // Auto-select first OK clip if nothing selected
+  if (currentClip < 0 && manifest.clips?.length) {
+    const firstOk = manifest.clips.findIndex(c => c.status === 'ok');
+    if (firstOk >= 0) selectClip(firstOk);
+  } else if (currentClip >= 0) {
+    // Refresh detail in case manifest updated
+    showDetail(currentClip);
+  }
+}
+
+// Init
+render();
+refreshId = setInterval(render, 15000);
+</script>
+</body>
+</html>
