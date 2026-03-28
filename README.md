@@ -1,42 +1,57 @@
 # agentic-filmmaker
 
-AI music video pipeline. Three agents -- vision, narrative, and video generation -- chain-generate a music video from a single seed image, one clip at a time.
+AI film production pipeline. Generate music videos, short films, and drama with persistent characters, native dialogue, and cinematic scene control.
 
 ## What it does
 
-Given a seed image and a project config (song structure, style, characters), the pipeline runs an agentic loop: a video generator (Sora 2) produces a clip from the seed, ffmpeg extracts the last frame, a vision agent (GPT-4o) describes what it sees, a narrative agent (Claude) writes what happens next, and the cycle repeats. Each clip is born from the last frame of the previous one, so the film dreams itself forward with no human intervention. The result is a full music video assembled from individually generated clips with an audio track overlaid.
+Given seed images, a project config, and optionally an audio track, the pipeline generates films using two production modes:
+
+**Mode A — Long Scene** (30s, 60s, unlimited duration): A freeze-frame chain where each clip seeds from the last frame of the previous one, producing continuous scenes. Characters stay locked via persistent element IDs registered on the video generation platform.
+
+**Mode B — Quick Cuts** (up to 15s per call): Multi-prompt scene transitions in a single API call, with up to 6 shots and automatic camera selection. Ideal for action sequences and storyboard execution.
+
+Both modes support native audio generation with multi-character dialogue, persistent character consistency across sessions, and start/end frame morphing for smooth transitions.
 
 ## Architecture
 
 ```
-                          ┌──────────────────────────────────────────────┐
-                          │              AGENTIC LOOP                   │
-                          │                                             │
-  seed image ─────┐       │   ┌─────────┐     ┌──────────┐             │
-       or         ├───────┼──►│ Sora 2  │────►│  ffmpeg  │             │
-  freeze frame    │       │   │ (video) │     │ (extract │             │
-       or         │       │   └─────────┘     │  last    │             │
-  Flux ref ───────┘       │        ▲          │  frame)  │             │
-                          │        │          └────┬─────┘             │
-                          │   scene prompt         │                   │
-                          │        │          frame image              │
-                          │   ┌────┴──────┐        │                   │
-                          │   │  Claude   │   ┌────▼─────┐            │
-                          │   │(narrative)│◄──│  GPT-4o  │            │
-                          │   └───────────┘   │ (vision) │            │
-                          │                   └──────────┘            │
-                          └──────────────────────────────────────────────┘
-                                         │
-                                    all clips
-                                         │
-                                    ┌────▼─────┐
-                                    │  ffmpeg  │
-                                    │ (concat  │
-                                    │ + audio) │
-                                    └──────────┘
-                                         │
-                                    final.mp4
+  Mode A (Long Scene):               Mode B (Quick Cuts):
+
+  seed image ─────┐                  seed image ─────┐
+       or         │                                   │
+  freeze frame ───┤                  multi_prompt ────┤
+       or         │                  [{prompt, dur},  │
+  Flux ref ───────┘                   {prompt, dur}]  │
+        │                                    │        │
+        ▼                                    ▼        │
+  ┌───────────┐                        ┌───────────┐  │
+  │ Kling 3.0 │ ◄── elements ──────── │ Kling 3.0 │ ◄┘
+  │   Pro     │     (face lock)        │   Pro     │
+  │ + sound   │                        │ + sound   │
+  └─────┬─────┘                        └─────┬─────┘
+        │                                    │
+   clip_N.mp4                           multi-shot.mp4
+        │                                    │
+   extract last ──► seed next clip      single output
+   frame (ffmpeg)   (repeat chain)      (up to 15s)
+        │
+   ┌────▼─────┐
+   │  Claude   │ ◄── vision (GPT-4o)
+   │(narrative)│     analyzes last frame
+   └──────────┘
+        │
+   next scene prompt ──► loop
 ```
+
+Final assembly: ffmpeg concat + audio overlay → final.mp4
+
+## Supported backends
+
+| Backend | Status | Notes |
+|---------|--------|-------|
+| **Kling 3.0 Pro** | Primary | Via WaveSpeed API. Native audio, elements, multi-shot. |
+| Sora 2 | Legacy | OpenAI Videos API. Consumer app killed March 2024, API still works. |
+| Flux 2 Pro | Seed images | Via OpenRouter. Face-conditioned with multi-reference. |
 
 ## Quick start
 
@@ -44,14 +59,18 @@ Given a seed image and a project config (song structure, style, characters), the
 pip install -e ".[audio]"
 
 # Set up API keys
-export OPENAI_API_KEY="sk-..."          # Sora 2, DALL-E 3, GPT-4o
-export OPENROUTER_API_KEY="sk-or-..."   # Narrative agent (Claude via OpenRouter)
+export WAVESPEED_API_KEY="..."          # Kling 3.0 Pro via WaveSpeed (primary)
+export OPENROUTER_API_KEY="sk-or-..."   # Flux seed images + Claude narrative agent
+export OPENAI_API_KEY="sk-..."          # GPT-4o vision (optional: Sora 2 legacy)
 
 # Create a project from audio + lyrics
 filmmaker init --audio track.wav --lyrics lyrics.txt --title "My Song" --artist "My Band"
 
-# Edit the generated project.yaml — add style, characters, seed prompt, tweak moods
+# Edit the generated project.yaml — add style, characters, elements, tweak moods
 vim project.yaml
+
+# Register persistent characters (once, reuse forever)
+# See "Character Elements" section below
 
 # Generate all clips
 filmmaker generate project.yaml
@@ -60,7 +79,7 @@ filmmaker generate project.yaml
 filmmaker assemble project.yaml
 ```
 
-Or write the project YAML by hand (see `examples/fsf.yaml` for a complete example) and skip straight to `generate`.
+Or write the project YAML by hand and skip straight to `generate`.
 
 ## CLI reference
 
@@ -324,10 +343,78 @@ class MyGenerator(VideoGenerator):
 ```
 
 The built-in generators are:
-- **`Sora2Generator`** -- OpenAI Sora 2 for video, DALL-E 3 for seed images. Default.
+- **`KlingGenerator`** -- Kling 3.0 Pro via WaveSpeed API. Recommended. Supports Mode A (long scene), Mode B (multi-shot), character elements, native audio with dialogue, start/end frame morphing. Seed images via Flux 2 Pro on OpenRouter.
+- **`Sora2Generator`** -- OpenAI Sora 2 for video, DALL-E 3 for seed images. Legacy (consumer app killed March 2024, API still works).
 - **`FluxGenerator`** -- Black Forest Labs Flux via OpenRouter. Used for character reference images in interspersed seeding mode.
 
-To wire in a custom generator, instantiate it in place of `Sora2Generator` in your own script, or modify `cli.py`.
+To wire in a custom generator, instantiate it in place of `KlingGenerator` in your own script, or modify `cli.py`.
+
+## Character elements
+
+Kling supports persistent character registration. Upload photos once, get a permanent `element_id` that locks the character's face across all future generations — no more feeding reference photos every time, no face drift between clips.
+
+```python
+from filmmaker.generators import KlingGenerator
+
+gen = KlingGenerator(wavespeed_key="...", sound=True)
+
+# Register a character (once)
+element_id = gen.create_element(
+    name="Asel",
+    description="Woman, curly dark hair, Central Asian features, high cheekbones.",
+    primary_image="https://example.com/asel_front.jpg",
+    reference_images=["https://example.com/asel_profile.jpg"],
+)
+# Returns: "306696265837507" (persistent on Kling's servers)
+
+# Use in all future generations
+gen = KlingGenerator(
+    wavespeed_key="...",
+    sound=True,
+    element_list=[{"element_id": element_id}],
+)
+```
+
+Reference characters by name in prompts. The model matches names to registered elements:
+
+```
+[Asel, clear prophetic voice]: "Vision is not sight."
+[Iman, deep measured voice]: "It is the instrument of witness."
+```
+
+## Multi-character dialogue
+
+Native audio generation with character dialogue is controlled entirely through the prompt format:
+
+```yaml
+prompt: |
+  Close-up of Asel and Iman in a candlelit room.
+  [Asel, clear prophetic voice]: "Say: Vision is the seeing that pierces the surface."
+  Immediately, [Iman, deep thoughtful voice]: "That extracts from meaning a point that witnesses you."
+  Warm amber candlelight. 16mm film grain.
+```
+
+Set `sound: true` in the video config. Costs 1.5x the base generation rate.
+
+## Multi-shot quick cuts (Mode B)
+
+For rapid scene changes in a single API call:
+
+```yaml
+video:
+  model: "kling-3.0-pro"
+  sound: true
+
+# In your generation script:
+shots = [
+    {"prompt": "Wide shot: she bursts through the door. [Asel]: 'The field has opened.'", "duration": 3},
+    {"prompt": "Close-up: he spins dials on the console. [Iman]: 'I see it.'", "duration": 3},
+    {"prompt": "Two-shot: they look up through the open dome. Stars visible.", "duration": 4},
+]
+gen.generate_multishot(prompt="Observatory scene", seed_image=img, output_path=out, shots=shots, duration=10)
+```
+
+Up to 6 shots per call, max 15 seconds total. Kling handles all transitions internally.
 
 ## File structure
 
@@ -343,12 +430,11 @@ filmmaker/
 ├── assembly.py        # ffmpeg concat + audio overlay
 └── generators/
     ├── base.py        # Abstract VideoGenerator
-    ├── sora2.py       # Sora 2 + DALL-E 3 implementation
+    ├── kling.py       # Kling 3.0 Pro via WaveSpeed (primary)
+    ├── sora2.py       # Sora 2 + DALL-E 3 (legacy)
     └── flux.py        # Flux reference image generation (OpenRouter)
 
 storyboard.html        # Generic reusable progress viewer
-examples/
-└── fsf.yaml           # Complete example project
 ```
 
 ## Requirements
@@ -356,8 +442,9 @@ examples/
 - **Python 3.11+**
 - **ffmpeg** (for frame extraction and final assembly)
 - **API keys:**
-  - `OPENAI_API_KEY` -- Sora 2 (video generation), DALL-E 3 (seed images), GPT-4o (vision)
-  - `OPENROUTER_API_KEY` -- narrative agent (Claude or any OpenRouter model); also required for Flux references in interspersed mode
+  - `WAVESPEED_API_KEY` -- Kling 3.0 Pro (primary video generation, elements, audio)
+  - `OPENROUTER_API_KEY` -- Flux 2 Pro (seed images), Claude (narrative agent)
+  - `OPENAI_API_KEY` -- GPT-4o (vision); optional: Sora 2 (legacy video)
 - **Optional:** `librosa` + `numpy` for audio analysis in `init` (install with `pip install -e ".[audio]"`)
 
 ## Credits

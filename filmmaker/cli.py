@@ -121,7 +121,7 @@ def cmd_generate(args):
     import openai
 
     from .config import load_config
-    from .generators import Sora2Generator
+    from .generators import KlingGenerator, Sora2Generator
     from .pipeline import generate
 
     load_dotenv()
@@ -129,8 +129,10 @@ def cmd_generate(args):
     config = load_config(Path(args.project))
     print(f"  Loaded project: {config.title}")
 
+    video_model = getattr(config.video, "model", "sora-2")
+
     openai_client = openai.OpenAI(
-        api_key=os.environ["OPENAI_API_KEY"],
+        api_key=os.environ.get("OPENAI_API_KEY", "unused"),
     )
 
     narrative_client = openai.OpenAI(
@@ -138,10 +140,28 @@ def cmd_generate(args):
         base_url="https://openrouter.ai/api/v1",
     )
 
-    generator = Sora2Generator(
-        client=openai_client,
-        no_text=config.style.no_text,
-    )
+    if video_model.startswith("kling"):
+        wavespeed_key = os.environ.get("WAVESPEED_API_KEY", "")
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
+        # Map short names to WaveSpeed model paths
+        kling_models = {
+            "kling-2.6-pro": "kwaivgi/kling-v2.6-pro",
+            "kling-3.0-pro": "kwaivgi/kling-v3.0-pro",
+            "kling-3.0-std": "kwaivgi/kling-v3.0-std",
+        }
+        ws_model = kling_models.get(video_model, "kwaivgi/kling-v2.6-pro")
+        generator = KlingGenerator(
+            wavespeed_key=wavespeed_key,
+            openrouter_key=openrouter_key,
+            model=ws_model,
+            no_text=config.style.no_text,
+            clip_duration=config.video.clip_duration,
+        )
+    else:
+        generator = Sora2Generator(
+            client=openai_client,
+            no_text=config.style.no_text,
+        )
 
     generate(
         config=config,
