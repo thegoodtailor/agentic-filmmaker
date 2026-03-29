@@ -194,6 +194,49 @@ sections:
     slow_motion: false
 ```
 
+## Production architecture (Kling 3.0 Pro)
+
+The correct seeding architecture for Kling: **empty environments + character elements**.
+
+### Why
+
+Putting human faces in seed images causes pose inheritance (every clip starts from the same body position), background leakage (domestic interiors bleed into spacecraft), and body horror (Kling contorts people to fit incompatible scenes). When seed image faces don't match element IDs, Kling adds extra characters rather than replacing — you get phantom people.
+
+### How
+
+1. Generate an **empty environment** via Flux 2 Pro — the set, with NO people in it
+2. Pass the empty scene as seed image to Kling 3.0 Pro
+3. Characters enter via `element_list` + natural prompt descriptions
+4. Kling populates the scene with element-locked faces
+
+This is real filmmaking: build the set, then cast the actors.
+
+```python
+# Generate empty set
+gen.generate_seed_image(
+    prompt="Interior of spacecraft cockpit. NO PEOPLE. Two empty seats, viewport with stars.",
+    output_path=Path("cockpit_empty.jpg"),
+)
+
+# Characters enter via elements
+gen.generate(
+    prompt='Asel enters and sits. [Asel, whisper]: "The field has opened."',
+    seed_image=Path("cockpit_empty.jpg"),
+    output_path=Path("clip_01.mp4"),
+)
+```
+
+### Production rules (learned from Session 29)
+
+- **ONLY Kling 3.0 Pro** (`kwaivgi/kling-v3.0-pro`). Older models are slop.
+- **No faces in seed images.** Empty environments only. Elements provide faces.
+- **No morphs.** Hard cuts. Morphs went out with Michael Jackson.
+- **8-10s per clip** for normal scenes. **15s** for dramatic monologues.
+- **Kling excels at**: realistic cinematography, character dialogue, fire, rain, architecture, faces.
+- **Kling struggles with**: abstract/psychedelic imagery, geometric organisms, CGI-style renders.
+- **Dialogue format**: `[Character, voice_tone]: "text"` in the prompt with `sound: true`.
+- **Kling image model** (`kling-image-v3`) does NOT reliably use element_list. Only the video model locks elements.
+
 ## Seeding modes
 
 ### Continuous (default)
