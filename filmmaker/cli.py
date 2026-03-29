@@ -147,6 +147,9 @@ def cmd_generate(args):
             model=video_model,
             no_text=config.style.no_text,
             clip_duration=config.video.clip_duration,
+            sound=config.video.sound,
+            element_list=config.video.element_list,
+            aspect_ratio=config.video.aspect_ratio or None,
         )
     else:
         generator = Sora2Generator(
@@ -162,6 +165,30 @@ def cmd_generate(args):
         start_from=args.start_from,
         n_clips=args.clips,
     )
+
+
+def cmd_element(args):
+    """Register a persistent character element on Kling."""
+    from .generators import KlingGenerator
+
+    load_dotenv()
+
+    gen = KlingGenerator(
+        wavespeed_key=os.environ.get("WAVESPEED_API_KEY", ""),
+        model="kling-3.0-pro",
+    )
+
+    element_id = gen.create_element(
+        name=args.name,
+        description=args.description,
+        primary_image=args.image,
+        reference_images=args.refs,
+    )
+    print(f"\n  Element registered: {args.name}")
+    print(f"  ID: {element_id}")
+    print(f"\n  Add to your project.yaml:")
+    print(f'  element_list:')
+    print(f'    - element_id: "{element_id}"')
 
 
 def cmd_assemble(args):
@@ -226,6 +253,20 @@ def main():
     p_gen.add_argument("--start-from", type=int, default=0, help="Resume from clip N")
     p_gen.add_argument("--clips", type=int, help="Override total clip count")
     p_gen.set_defaults(func=cmd_generate)
+
+    # --- element ---
+    p_elem = subparsers.add_parser(
+        "element",
+        help="Register a persistent character on Kling",
+    )
+    p_elem.add_argument("--name", required=True, help="Character name (e.g. 'Asel')")
+    p_elem.add_argument("--description", required=True,
+                        help="Physical description, max 100 chars")
+    p_elem.add_argument("--image", required=True,
+                        help="URL of primary reference photo")
+    p_elem.add_argument("--refs", nargs="+", required=True,
+                        help="URLs of additional reference photos (min 1)")
+    p_elem.set_defaults(func=cmd_element)
 
     # --- assemble ---
     p_asm = subparsers.add_parser(

@@ -1,0 +1,107 @@
+# Example project: 30-second film with Kling 3.0 Pro
+#
+# This generates 6 clips (5s each) with native dialogue, character elements,
+# and an audio track overlaid at the end.
+#
+# Prerequisites:
+#   export WAVESPEED_API_KEY="..."     # WaveSpeed account
+#   export OPENROUTER_API_KEY="..."    # For Flux seed images + Claude narrative
+#   export OPENAI_API_KEY="..."        # For GPT-4o vision (optional)
+#
+# Usage:
+#   filmmaker generate examples/example.yaml
+#   filmmaker assemble examples/example.yaml
+
+project:
+  title: "Example Film"
+  artist: "Your Name"
+
+audio:
+  path: "your_track.wav"    # Path to audio file (relative to this YAML)
+  duration: 30.0            # Song duration in seconds
+
+video:
+  model: "kling-3.0-pro"    # ONLY use 3.0-pro. Older models are low quality.
+  clip_duration: 5           # Seconds per clip (3-15)
+  size: "1280x720"
+  seeding_mode: "continuous" # "continuous" = freeze-frame chain
+  sound: true                # Native audio + dialogue generation
+  aspect_ratio: "9:16"       # Portrait for Instagram reels, "16:9" for YouTube
+
+  # Persistent character elements (register once with `filmmaker element`)
+  # These IDs lock character faces across all clips and sessions.
+  element_list:
+    - element_id: "YOUR_ELEMENT_ID_HERE"
+
+# How to register characters:
+#
+#   filmmaker element \
+#     --name "Alice" \
+#     --description "Woman with short dark hair, angular features." \
+#     --image "https://example.com/alice_front.jpg" \
+#     --refs "https://example.com/alice_profile.jpg"
+#
+# This returns an element_id to put in element_list above.
+
+vision:
+  model: "gpt-4o"
+  system_prompt: |
+    Describe what you see in this video frame. Focus on:
+    characters, environment, lighting, mood. 3-4 sentences.
+
+narrative:
+  model: "anthropic/claude-sonnet-4"
+  system_prompt: |
+    You direct scenes for a short film. Write 2-3 sentences describing
+    what the camera sees next. Include character dialogue in this format:
+    [Character, voice_tone]: "dialogue text"
+
+    The video generator has no memory between clips. Describe characters
+    physically every time — never use names alone.
+
+style:
+  global: |
+    16mm film grain. Warm analog palette — amber, teal, burgundy.
+    Hyperrealistic, cinematic, documentary feel.
+    No text, no watermarks, no writing of any kind.
+  no_text: true
+
+characters:
+  - name: "alice"
+    description: |
+      A woman with short dark hair and angular features.
+      She wears a dark structured jacket. Her mouth is closed
+      unless dialogue is specified in the prompt.
+    appears: "every"
+
+camera_moves:
+  - "Slow tracking shot left to right"
+  - "Dolly push-in from medium to close-up"
+  - "Wide locked-off shot, figure moves through frame"
+  - "Low angle looking up"
+  - "Static medium portrait, warm sidelight"
+
+seed:
+  # Seed image for the first clip. Use an EMPTY ENVIRONMENT — no people.
+  # Characters enter via element_list, not via the seed image.
+  # If you put faces in the seed, Kling inherits the pose and setting.
+  prompt: |
+    Interior of a dimly lit room. NO PEOPLE. A desk with warm lamp light.
+    Window showing city lights at night. Hyperrealistic. No text.
+  # Or provide your own image:
+  # image: "seed.jpg"
+
+sections:
+  - name: "Opening"
+    clips: [0, 2]
+    mood: |
+      Establishing shot. The room is empty. Then Alice enters.
+      She sits at the desk and speaks directly to camera.
+      [Alice, clear steady voice]: "This is where it begins."
+
+  - name: "Development"
+    clips: [3, 5]
+    mood: |
+      Alice moves through the space. Close-ups of hands, objects.
+      The light shifts. Something changes.
+      [Alice, quieter]: "The field has opened."

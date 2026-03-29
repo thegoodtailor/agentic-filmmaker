@@ -16,11 +16,14 @@ class AudioConfig:
 class VideoConfig:
     clip_duration: int = 8
     size: str = "1280x720"
-    model: str = "sora-2"
+    model: str = "kling-3.0-pro"
     slow_motion_factor: float = 1.0
     seeding_mode: str = "continuous"  # "continuous" or "interspersed"
-    reference_model: str = "black-forest-labs/flux.2-max"  # for interspersed mode
+    reference_model: str = "black-forest-labs/flux.2-pro"  # for seed images
     reference_prompt: str | list[str] = ""  # character description(s) for reference images
+    sound: bool = False  # native audio generation (Kling 3.0 Pro)
+    element_list: list[dict] = field(default_factory=list)  # persistent character IDs
+    aspect_ratio: str = ""  # e.g. "9:16", "16:9", "1:1"
 
 
 @dataclass
@@ -202,11 +205,14 @@ def load_config(yaml_path: Path) -> ProjectConfig:
         video=VideoConfig(
             clip_duration=video_raw.get("clip_duration", 8),
             size=video_raw.get("size", "1280x720"),
-            model=video_raw.get("model", "sora-2"),
+            model=video_raw.get("model", "kling-3.0-pro"),
             slow_motion_factor=video_raw.get("slow_motion_factor", 1.0),
             seeding_mode=video_raw.get("seeding_mode", "continuous"),
-            reference_model=video_raw.get("reference_model", "black-forest-labs/flux.2-max"),
+            reference_model=video_raw.get("reference_model", "black-forest-labs/flux.2-pro"),
             reference_prompt=video_raw.get("reference_prompt", ""),
+            sound=video_raw.get("sound", False),
+            element_list=video_raw.get("element_list", []),
+            aspect_ratio=video_raw.get("aspect_ratio", ""),
         ),
         vision=VisionConfig(
             model=vision_raw.get("model", "gpt-4o"),
@@ -264,6 +270,9 @@ def save_config(config: ProjectConfig, yaml_path: Path) -> None:
             "seeding_mode": config.video.seeding_mode,
             "reference_model": config.video.reference_model,
             "reference_prompt": config.video.reference_prompt,
+            "sound": config.video.sound,
+            "element_list": config.video.element_list,
+            "aspect_ratio": config.video.aspect_ratio,
         },
         "vision": {
             "model": config.vision.model,
