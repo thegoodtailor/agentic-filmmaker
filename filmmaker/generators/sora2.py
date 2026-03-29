@@ -7,12 +7,7 @@ from pathlib import Path
 import openai
 
 from ..frames import resize_for_video
-from .base import VideoGenerator
-
-NO_TEXT = (
-    "Absolutely no text, letters, words, numbers, writing, subtitles, "
-    "captions, or symbols of any kind."
-)
+from .base import NO_TEXT, VideoGenerator
 
 
 class Sora2Generator(VideoGenerator):

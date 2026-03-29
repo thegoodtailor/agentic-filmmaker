@@ -1,30 +1,15 @@
 """Kling 3.0 Pro video generator via WaveSpeed API.
 
-IMPORTANT: Only use kling-v3.0-pro. Older models (v1.x, v2.x, v2.6) produce
-inferior quality. See session 29 notes.
+IMPORTANT: Only use kling-v3.0-pro. Older models produce inferior quality.
 
 Two production modes:
-  Mode A (Long Scene): Freeze-frame chain for continuous 30s/60s+ scenes.
-    - Generate clip → extract last frame → seed next clip
-    - Elements keep faces locked across clips
-  Mode B (Quick Cuts): multi_prompt for rapid scene changes up to 15s.
-    - Single API call, up to 6 shots
-    - Kling handles transitions internally
+  Mode A (Long Scene): Freeze-frame chain for 30s/60s+ continuous scenes.
+  Mode B (Quick Cuts): multi_prompt for up to 6 shots in one API call.
 
-Confirmed working parameters on 3.0 Pro via WaveSpeed:
-  - sound: true — native audio + dialogue (1.5x cost)
-  - multi_prompt: [{prompt, duration}] — multi-shot transitions
-  - end_image: URL — start→end frame morphing
-  - element_list: [{"element_id": "..."}] — persistent character lock
-  - Dialogue in prompts: [Character, voice_tone]: "text"
-  - duration: 3-15 seconds
-  - cfg_scale: 0.0-1.0
-  - aspect_ratio: "16:9", "9:16", "1:1"
-  - negative_prompt: exclusions
-
-Element IDs (persistent on Kling servers):
-  - Asel: 306696265837507
-  - Iman: 306696672116506
+Architecture: empty environment seeds + character elements.
+  - Generate empty scenes (no people) as seed images
+  - Characters enter via element_list + prompt descriptions
+  - Dialogue format: [Character, voice_tone]: "text" with sound=True
 """
 
 import os
@@ -33,12 +18,12 @@ import base64
 import requests
 from pathlib import Path
 
-from .base import VideoGenerator
+from .base import NO_TEXT, VideoGenerator, generate_flux_image
 
-NO_TEXT = (
-    "Absolutely no text, letters, words, numbers, writing, subtitles, "
-    "captions, or symbols of any kind."
-)
+KLING_MODELS = {
+    "kling-3.0-pro": "kwaivgi/kling-v3.0-pro",
+    "kling-3.0-std": "kwaivgi/kling-v3.0-std",
+}
 
 
 class KlingGenerator(VideoGenerator):
@@ -48,7 +33,7 @@ class KlingGenerator(VideoGenerator):
         self,
         wavespeed_key: str,
         openrouter_key: str | None = None,
-        model: str = "kwaivgi/kling-v3.0-pro",
+        model: str = "kling-3.0-pro",
         max_retries: int = 3,
         no_text: bool = True,
         clip_duration: int = 5,
@@ -58,7 +43,7 @@ class KlingGenerator(VideoGenerator):
     ):
         self.wavespeed_key = wavespeed_key
         self.openrouter_key = openrouter_key or os.environ.get("OPENROUTER_API_KEY", "")
-        self.model = model
+        self.model = self._resolve_model(model)
         self.max_retries = max_retries
         self.no_text = no_text
         self.clip_duration = clip_duration
@@ -66,6 +51,18 @@ class KlingGenerator(VideoGenerator):
         self.element_list = element_list or []
         self.aspect_ratio = aspect_ratio
         self.api_base = "https://api.wavespeed.ai/api/v3"
+
+    @staticmethod
+    def _resolve_model(model: str) -> str:
+        """Resolve short model name to WaveSpeed path."""
+        if model in KLING_MODELS:
+            return KLING_MODELS[model]
+        if model.startswith("kwaivgi/"):
+            return model
+        raise ValueError(
+            f"Unknown Kling model: {model!r}. "
+            f"Valid: {', '.join(KLING_MODELS)} or a full kwaivgi/ path."
+        )
 
     def _encode_local(self, path: Path) -> str:
         """Encode a local file as a data URI."""
@@ -79,14 +76,24 @@ class KlingGenerator(VideoGenerator):
         return f"data:image/{ext};base64,{b64}"
 
     def _poll(self, poll_url: str, label: str, timeout: int = 360) -> list[str] | None:
-        """Poll a WaveSpeed task until completion."""
+        """Poll a WaveSpeed task until completion with exponential backoff."""
         print(f"    Polling {label}...", end="", flush=True)
-        for _ in range(timeout // 2):
-            time.sleep(2)
-            result = requests.get(
-                poll_url,
-                headers={"Authorization": f"Bearer {self.wavespeed_key}"},
-            ).json()
+        elapsed = 0
+        sleep = 2
+        while elapsed < timeout:
+            time.sleep(sleep)
+            elapsed += sleep
+            try:
+                result = requests.get(
+                    poll_url,
+                    headers={"Authorization": f"Bearer {self.wavespeed_key}"},
+                    timeout=30,
+                ).json()
+            except requests.RequestException:
+                print("x", end="", flush=True)
+                sleep = min(sleep * 1.5, 20)
+                continue
+
             status = result.get("data", {}).get("status", "")
             if status == "completed":
                 print(" done")
@@ -96,6 +103,8 @@ class KlingGenerator(VideoGenerator):
                 print(f" FAILED: {err}")
                 return None
             print(".", end="", flush=True)
+            sleep = min(sleep * 1.3, 15)
+
         print(" timeout")
         return None
 
@@ -107,6 +116,23 @@ class KlingGenerator(VideoGenerator):
             f.write(video_resp.content)
         print(f"    Saved: {output_path.name} ({len(video_resp.content) // 1024} KB)")
         return output_path
+
+    def _build_payload(self, image_uri: str, prompt: str, duration: int, **extra) -> dict:
+        """Build a standard generation payload."""
+        full_prompt = f"{prompt} {NO_TEXT}" if self.no_text else prompt
+        payload = {
+            "image": image_uri,
+            "prompt": full_prompt,
+            "cfg_scale": 0.5,
+            "duration": min(duration, 15),
+            "sound": self.sound,
+            **extra,
+        }
+        if self.element_list:
+            payload["element_list"] = self.element_list
+        if self.aspect_ratio:
+            payload["aspect_ratio"] = self.aspect_ratio
+        return payload
 
     def _submit(self, payload: dict) -> dict:
         """Submit a generation task to WaveSpeed."""
@@ -124,48 +150,13 @@ class KlingGenerator(VideoGenerator):
             raise RuntimeError(f"API error: {data}")
         return data["data"]
 
-    # ── Mode A: Standard generation (single clip) ──────────────────
-
-    def generate(
-        self,
-        prompt: str,
-        seed_image: Path,
-        output_path: Path,
-        duration: int = 5,
-        size: str = "1280x720",
-    ) -> Path:
-        """Generate a single video clip from seed image + prompt.
-
-        This is the standard Mode A building block. Chain multiple calls
-        with freeze-frame extraction for long scenes (30s, 60s+).
-        """
-        if output_path.exists():
-            print(f"    Video exists: {output_path.name}")
-            return output_path
-
-        full_prompt = f"{prompt} {NO_TEXT}" if self.no_text else prompt
-        print(f"    Generating video: {output_path.name}")
-        print(f"    Prompt: {full_prompt[:100]}...")
-
-        image_uri = self._encode_local(seed_image)
-
-        payload = {
-            "image": image_uri,
-            "prompt": full_prompt,
-            "cfg_scale": 0.5,
-            "duration": min(duration, 15),
-            "sound": self.sound,
-        }
-        if self.element_list:
-            payload["element_list"] = self.element_list
-        if self.aspect_ratio:
-            payload["aspect_ratio"] = self.aspect_ratio
-
+    def _run(self, payload: dict, output_path: Path, poll_timeout: int = 360) -> Path:
+        """Submit, poll, download with retries. Used by all generation methods."""
         last_err = None
         for attempt in range(self.max_retries):
             try:
                 task = self._submit(payload)
-                outputs = self._poll(task["urls"]["get"], output_path.name)
+                outputs = self._poll(task["urls"]["get"], output_path.name, timeout=poll_timeout)
                 if outputs:
                     return self._download(outputs[0], output_path)
                 raise RuntimeError("No outputs")
@@ -177,7 +168,26 @@ class KlingGenerator(VideoGenerator):
 
         raise RuntimeError(f"Failed after {self.max_retries} attempts: {last_err}")
 
-    # ── Mode B: Multi-shot quick cuts (single API call) ────────────
+    # ── Mode A: Standard generation (single clip) ──────────────────
+
+    def generate(
+        self,
+        prompt: str,
+        seed_image: Path,
+        output_path: Path,
+        duration: int = 5,
+        size: str = "1280x720",
+    ) -> Path:
+        """Generate a single video clip from seed image + prompt."""
+        if output_path.exists():
+            print(f"    Video exists: {output_path.name}")
+            return output_path
+
+        print(f"    Generating video: {output_path.name}")
+        payload = self._build_payload(self._encode_local(seed_image), prompt, duration)
+        return self._run(payload, output_path)
+
+    # ── Mode B: Multi-shot quick cuts ──────────────────────────────
 
     def generate_multishot(
         self,
@@ -187,46 +197,21 @@ class KlingGenerator(VideoGenerator):
         shots: list[dict],
         duration: int = 15,
     ) -> Path:
-        """Generate a multi-shot clip with scene transitions.
-
-        Args:
-            prompt: Master prompt (overall creative direction).
-            seed_image: Starting image.
-            shots: List of {"prompt": str, "duration": int} dicts.
-                   Up to 6 shots, total duration <= 15s.
-            duration: Total clip duration (should match sum of shot durations).
-        """
+        """Generate a multi-shot clip. Up to 6 shots, max 15s total."""
         if output_path.exists():
             print(f"    Video exists: {output_path.name}")
             return output_path
 
-        full_prompt = f"{prompt} {NO_TEXT}" if self.no_text else prompt
         print(f"    Generating multishot: {output_path.name} ({len(shots)} shots)")
+        payload = self._build_payload(
+            self._encode_local(seed_image), prompt, duration,
+            multi_prompt=shots,
+        )
+        return self._run(payload, output_path, poll_timeout=480)
 
-        image_uri = self._encode_local(seed_image)
+    # ── Start/End frame transition ─────────────────────────────────
 
-        payload = {
-            "image": image_uri,
-            "prompt": full_prompt,
-            "multi_prompt": shots,
-            "cfg_scale": 0.5,
-            "duration": min(duration, 15),
-            "sound": self.sound,
-        }
-        if self.element_list:
-            payload["element_list"] = self.element_list
-        if self.aspect_ratio:
-            payload["aspect_ratio"] = self.aspect_ratio
-
-        task = self._submit(payload)
-        outputs = self._poll(task["urls"]["get"], output_path.name, timeout=480)
-        if outputs:
-            return self._download(outputs[0], output_path)
-        raise RuntimeError("Multi-shot generation failed")
-
-    # ── Start/End frame morphing ───────────────────────────────────
-
-    def generate_morph(
+    def generate_transition(
         self,
         prompt: str,
         start_image: Path,
@@ -234,33 +219,17 @@ class KlingGenerator(VideoGenerator):
         output_path: Path,
         duration: int = 10,
     ) -> Path:
-        """Generate a video that morphs between start and end frames.
-
-        Useful for smooth transitions between scenes or character states.
-        """
+        """Generate a video transitioning between start and end frames."""
         if output_path.exists():
             print(f"    Video exists: {output_path.name}")
             return output_path
 
-        full_prompt = f"{prompt} {NO_TEXT}" if self.no_text else prompt
-        print(f"    Generating morph: {output_path.name}")
-
-        payload = {
-            "image": self._encode_local(start_image),
-            "end_image": self._encode_local(end_image),
-            "prompt": full_prompt,
-            "cfg_scale": 0.5,
-            "duration": min(duration, 15),
-            "sound": self.sound,
-        }
-        if self.element_list:
-            payload["element_list"] = self.element_list
-
-        task = self._submit(payload)
-        outputs = self._poll(task["urls"]["get"], output_path.name)
-        if outputs:
-            return self._download(outputs[0], output_path)
-        raise RuntimeError("Morph generation failed")
+        print(f"    Generating transition: {output_path.name}")
+        payload = self._build_payload(
+            self._encode_local(start_image), prompt, duration,
+            end_image=self._encode_local(end_image),
+        )
+        return self._run(payload, output_path)
 
     # ── Element management ─────────────────────────────────────────
 
@@ -274,13 +243,13 @@ class KlingGenerator(VideoGenerator):
         """Register a persistent character element on Kling's servers.
 
         Args:
-            name: Character name (e.g. "Asel").
+            name: Character name.
             description: Physical description, max 100 characters.
             primary_image: URL of the main reference photo.
-            reference_images: List of additional photo URLs (min 1).
+            reference_images: Additional photo URLs (min 1).
 
         Returns:
-            element_id: Persistent ID for use in element_list.
+            Persistent element_id for use in element_list.
         """
         print(f"    Creating element: {name}")
         resp = requests.post(
@@ -304,11 +273,11 @@ class KlingGenerator(VideoGenerator):
         outputs = self._poll(data["data"]["urls"]["get"], f"element-{name}", timeout=60)
         if outputs and isinstance(outputs, list) and len(outputs) > 0:
             element_id = outputs[0].get("element_id")
-            print(f"    Element registered: {name} → {element_id}")
+            print(f"    Element registered: {name} -> {element_id}")
             return element_id
         raise RuntimeError("Element creation returned no ID")
 
-    # ── Seed image generation via Flux ─────────────────────────────
+    # ── Seed image generation ──────────────────────────────────────
 
     def generate_seed_image(
         self,
@@ -317,51 +286,11 @@ class KlingGenerator(VideoGenerator):
         size: str = "1792x1024",
     ) -> Path:
         """Generate a seed image via Flux 2 Pro on OpenRouter."""
-        if output_path.exists():
-            print(f"    Seed exists: {output_path.name}")
-            return output_path
-
-        print(f"    Generating seed: {output_path.name}")
-
         w, h = (int(x) for x in size.split("x"))
         ar = "16:9" if w > h else ("3:4" if h > w else "1:1")
-
-        resp = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {self.openrouter_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "black-forest-labs/flux.2-pro",
-                "messages": [{"role": "user", "content": prompt}],
-                "modalities": ["image"],
-                "image_config": {"aspect_ratio": ar, "image_size": "2K"},
-            },
-            timeout=180,
+        return generate_flux_image(
+            api_key=self.openrouter_key,
+            prompt=prompt,
+            output_path=output_path,
+            aspect_ratio=ar,
         )
-
-        data = resp.json()
-        if "error" in data:
-            raise RuntimeError(f"Seed image error: {data['error']}")
-
-        message = data["choices"][0]["message"]
-        images = message.get("images", [])
-        if not images and isinstance(message.get("content"), list):
-            for part in message["content"]:
-                if isinstance(part, dict) and part.get("type") == "image_url":
-                    images.append(part)
-
-        if not images:
-            raise RuntimeError("No images in response")
-
-        url = images[0] if isinstance(images[0], str) else images[0].get("image_url", {}).get("url", "")
-        _, b64data = url.split(",", 1)
-        img_bytes = base64.b64decode(b64data)
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "wb") as f:
-            f.write(img_bytes)
-
-        print(f"    Saved: {output_path.name} ({len(img_bytes) // 1024} KB)")
-        return output_path
