@@ -68,12 +68,14 @@ class Section:
     lyrics: str = ""
     mood: str = ""
     slow_motion: bool = False
+    clip_duration: int = 0  # per-section override; 0 = use global default
 
 
 @dataclass
 class SeedConfig:
     prompt: str = ""
     image: str | None = None  # path to user-provided seed image
+    pool: str | None = None   # directory of pre-generated seed images (e.g. "seeds/")
 
 
 @dataclass
@@ -115,6 +117,13 @@ class ProjectConfig:
         if not self.sections:
             return 0
         return max(s.clips[1] for s in self.sections) + 1
+
+    def get_clip_duration(self, clip_num: int) -> int:
+        """Get duration for a specific clip (section override or global default)."""
+        section = self.get_section_for_clip(clip_num)
+        if section.clip_duration > 0:
+            return section.clip_duration
+        return self.video.clip_duration
 
     def get_character_descriptions(self) -> str:
         parts = []
@@ -185,6 +194,7 @@ def load_config(yaml_path: Path) -> ProjectConfig:
             lyrics=s.get("lyrics", ""),
             mood=s.get("mood", ""),
             slow_motion=s.get("slow_motion", False),
+            clip_duration=s.get("clip_duration", 0),
         )
         for s in raw.get("sections", [])
     ]
@@ -193,6 +203,8 @@ def load_config(yaml_path: Path) -> ProjectConfig:
     narrative_prompt = narrative_raw.get("system_prompt", "")
     if not narrative_prompt:
         narrative_prompt = _build_default_narrative_prompt(raw)
+
+    seed_pool = seed_raw.get("pool")
 
     config = ProjectConfig(
         title=project.get("title", "Untitled"),
@@ -243,6 +255,7 @@ def load_config(yaml_path: Path) -> ProjectConfig:
         seed=SeedConfig(
             prompt=seed_raw.get("prompt", ""),
             image=seed_raw.get("image"),
+            pool=seed_pool,
         ),
         project_dir=yaml_path.parent,
     )
@@ -305,12 +318,14 @@ def save_config(config: ProjectConfig, yaml_path: Path) -> None:
                 "lyrics": s.lyrics,
                 "mood": s.mood,
                 "slow_motion": s.slow_motion,
+                "clip_duration": s.clip_duration,
             }
             for s in config.sections
         ],
         "seed": {
             "prompt": config.seed.prompt,
             "image": config.seed.image,
+            "pool": config.seed.pool,
         },
     }
 

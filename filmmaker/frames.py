@@ -8,22 +8,45 @@ from PIL import Image
 
 
 def extract_last_frame(video_path: Path) -> Path:
-    """Extract the last frame of a video clip as PNG."""
+    """Extract the last frame of a video clip as PNG.
+
+    Uses ffprobe to get the duration, then seeks near the end to extract
+    only the final frame — avoids decoding the entire video.
+    """
     frame_path = video_path.with_suffix(".last_frame.png")
     if frame_path.exists() and frame_path.stat().st_size > 0:
         print(f"    Frame exists: {frame_path.name}")
         return frame_path
 
-    result = subprocess.run(
+    # Get duration so we can seek near the end
+    probe = subprocess.run(
         [
-            "ffmpeg", "-y",
-            "-i", str(video_path),
-            "-update", "1",
-            "-q:v", "2",
-            str(frame_path),
+            "ffprobe", "-v", "quiet",
+            "-show_entries", "format=duration",
+            "-of", "csv=p=0",
+            str(video_path),
         ],
         capture_output=True,
+        text=True,
     )
+    try:
+        duration = float(probe.stdout.strip())
+        # Seek to 0.1s before the end
+        seek_pos = max(0, duration - 0.1)
+    except (ValueError, TypeError):
+        seek_pos = None
+
+    cmd = ["ffmpeg", "-y"]
+    if seek_pos is not None:
+        cmd += ["-ss", f"{seek_pos:.3f}"]
+    cmd += [
+        "-i", str(video_path),
+        "-update", "1",
+        "-q:v", "2",
+        str(frame_path),
+    ]
+
+    result = subprocess.run(cmd, capture_output=True)
 
     if not frame_path.exists() or frame_path.stat().st_size == 0:
         raise RuntimeError(

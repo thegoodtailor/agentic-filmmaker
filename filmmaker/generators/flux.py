@@ -1,10 +1,12 @@
 """Flux image generator via OpenRouter — for character reference images."""
 
-import base64
+from io import BytesIO
 from pathlib import Path
 
 import requests
 from PIL import Image
+
+from .base import extract_openrouter_image
 
 
 class FluxGenerator:
@@ -19,7 +21,7 @@ class FluxGenerator:
     def __init__(
         self,
         api_key: str,
-        model: str = "black-forest-labs/flux.2-max",
+        model: str = "black-forest-labs/flux.2-pro",
         aspect_ratio: str = "16:9",
     ):
         self.api_key = api_key
@@ -77,31 +79,8 @@ class FluxGenerator:
         if "error" in data:
             raise RuntimeError(f"Flux API error: {data['error']}")
 
-        # Extract image from response
-        message = data["choices"][0]["message"]
-        images = message.get("images", [])
-        if not images and isinstance(message.get("content"), list):
-            for part in message["content"]:
-                if part.get("type") == "image_url":
-                    images.append(part)
-
-        if not images:
-            raise RuntimeError("No images in Flux response")
-
-        url = images[0].get("image_url", {}).get("url", "")
-        if not url.startswith("data:image"):
-            raise RuntimeError(f"Unexpected image URL format: {url[:50]}")
-
-        # Decode base64 image
-        _, b64data = url.split(",", 1)
-        img_bytes = base64.b64decode(b64data)
-
-        raw_path = output_path.parent / f"{output_path.stem}_raw.png"
-        with open(raw_path, "wb") as f:
-            f.write(img_bytes)
-
-        # Save as PNG
-        img = Image.open(raw_path)
+        img_bytes = extract_openrouter_image(data)
+        img = Image.open(BytesIO(img_bytes))
         img.save(output_path, "PNG")
         print(f"    Flux ref saved: {output_path.name} ({img.size})")
         return output_path

@@ -20,17 +20,21 @@ from .vision import analyze_frame
 
 
 class _SeedPicker:
-    """Manages interspersed seeding — random chain lengths before fresh Flux refs.
+    """Manages interspersed seeding — random chain lengths before fresh seeds.
 
-    Instead of rigid even/odd alternation, runs a random chain of 1-4 freeze
-    frames (continuity) before injecting a fresh Flux-generated character
-    reference (likeness reset). Supports multiple reference prompts — each
-    fresh ref randomly picks from the list, giving the character different
-    looks/faces across the video.
+    Three source modes (combined):
+    1. Pool: pre-generated seed images in a directory, cycled through.
+    2. Flux: on-demand Flux-generated character references.
+    3. Freeze: last frame of previous clip (continuity).
+
+    Runs a random chain of 1-4 freeze frames (continuity) before injecting
+    a fresh seed (from pool or Flux). If a pool is provided, it takes
+    priority over Flux generation — cheaper and more controllable.
     """
 
     def __init__(self, seed_path: Path, refs_dir: Path, flux: FluxGenerator | None,
-                 reference_prompt: str | list[str]):
+                 reference_prompt: str | list[str],
+                 pool_dir: Path | None = None):
         self.seed_path = seed_path
         self.refs_dir = refs_dir
         self.flux = flux
@@ -41,14 +45,54 @@ class _SeedPicker:
             self.prompts = reference_prompt
         self._chain_remaining = 0  # start with a ref on first non-seed clip
 
+        # Load seed pool if provided
+        self.pool: list[Path] = []
+        if pool_dir and pool_dir.is_dir():
+            # Look for clip_NN.png files first (sequential, matched to clips)
+            numbered = sorted(
+                p for p in pool_dir.glob("clip_*.png")
+                if p.stat().st_size > 0
+            )
+            if numbered:
+                self.pool = numbered
+                print(f"  Seed pool: {len(self.pool)} sequential seeds from {pool_dir.name}/")
+            else:
+                self.pool = sorted(
+                    p for p in pool_dir.iterdir()
+                    if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+                    and p.stat().st_size > 0
+                )
+                random.shuffle(self.pool)
+                print(f"  Seed pool: {len(self.pool)} images from {pool_dir.name}/ (shuffled)")
+        self._pool_idx = 0
+
+    def _pool_seed_for_clip(self, clip_num: int) -> Path | None:
+        """Get the pool seed for a specific clip number."""
+        # Try exact match first (clip_00.png for clip 0)
+        for p in self.pool:
+            if p.stem == f"clip_{clip_num:02d}":
+                return p
+        # Fall back to cycling
+        return self.pool[clip_num % len(self.pool)]
+
     def pick(self, clip_num: int, freeze_frame: Path | None,
              section_mood: str) -> tuple[Path, str]:
+        # If pool has a matched seed for this clip, ALWAYS use it.
+        # This ensures each clip gets its unique environment seed,
+        # preventing the freeze-frame chain from carrying characters
+        # into landscape-only clips.
+        if self.pool:
+            matched = self._pool_seed_for_clip(clip_num)
+            if matched:
+                return matched, "pool"
+
         if clip_num == 0 or freeze_frame is None:
             return self.seed_path, "seed"
 
-        # If chain exhausted, generate a fresh Flux reference
+        # If chain exhausted, inject a fresh seed
         if self._chain_remaining <= 0:
             self._chain_remaining = random.randint(1, 4)
+
             if self.flux and self.prompts:
                 ref_path = self.refs_dir / f"ref_{clip_num:02d}.png"
                 if not ref_path.exists():
@@ -180,11 +224,15 @@ def generate(
     # Initialize seed picker for interspersed mode
     seed_picker = None
     if interspersed:
+        pool_dir = None
+        if config.seed.pool:
+            pool_dir = config.project_dir / config.seed.pool
         seed_picker = _SeedPicker(
             seed_path=seed_path,
             refs_dir=refs_dir,
             flux=flux,
             reference_prompt=config.video.reference_prompt,
+            pool_dir=pool_dir,
         )
 
     # Reconstruct state for resumption
@@ -232,12 +280,13 @@ def generate(
 
         try:
             # Prepend style + character descriptions (video generator has no memory)
+            clip_duration = config.get_clip_duration(i)
             styled_prompt = f"{style_prefix} {current_prompt}"
             generator.generate(
                 prompt=styled_prompt,
                 seed_image=seed_image,
                 output_path=clip_path,
-                duration=config.video.clip_duration,
+                duration=clip_duration,
                 size=config.video.size,
             )
             clip_data["video"] = clip_path.name
@@ -271,6 +320,8 @@ def generate(
                 clip_data["next_prompt"] = next_prompt
 
                 story_so_far.append(next_prompt)
+                if len(story_so_far) > 12:
+                    story_so_far = story_so_far[-12:]
                 current_freeze = next_freeze
                 current_seed = next_freeze  # for continuous mode
                 current_prompt = next_prompt

@@ -87,12 +87,7 @@ class Sora2Generator(VideoGenerator):
         )
 
         url = resp.data[0].url
-        raw_path = output_path.parent / f"{output_path.stem}_raw.png"
-        urllib.request.urlretrieve(url, str(raw_path))
-
-        # Copy raw to output (resize happens later when needed)
-        import shutil
-        shutil.copy2(raw_path, output_path)
+        urllib.request.urlretrieve(url, str(output_path))
 
         print(f"    Seed image saved: {output_path.name}")
         return output_path
